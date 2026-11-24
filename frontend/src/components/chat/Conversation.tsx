@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Events } from '@wailsio/runtime';
 import { ChatsService } from '../../../bindings/daily-agent/internal/app';
 import type { ChatEvent, ChatMessageView, ChatView } from '../../../bindings/daily-agent/internal/app';
-import { agentUnavailable, useAgentStatus } from '../../lib/agent';
+import { agentSettingsHint, agentUnavailable, useAgentStatus } from '../../lib/agent';
+import { useCards } from '../../lib/cards';
 import { errorText } from '../../lib/data';
 import { NoteIcon, SendIcon, StopIcon, ToolIcon } from '../Icons';
 
@@ -24,6 +25,8 @@ type Props = {
 export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyText }: Props) {
   const status = useAgentStatus();
   const blocked = agentUnavailable(status);
+  const settingsHint = agentSettingsHint(status);
+  const { openSettings } = useCards();
   const [view, setView] = useState<ChatView | null>(null);
   const [pending, setPending] = useState<ChatMessageView[]>([]);
   const [streaming, setStreaming] = useState('');
@@ -126,11 +129,20 @@ export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyT
   return (
     <div className={`conversation conversation--${variant}`}>
       <div className="conversation__messages" ref={list} aria-live="polite">
-        {messages.length === 0 && !running && <p className="conversation__empty">{emptyText}</p>}
+        {messages.length === 0 && !running && !settingsHint && <p className="conversation__empty">{emptyText}</p>}
         {messages.map((m) => <MessageRow key={m.id} message={m} />)}
         {streaming && <p className="msg-agent">{streaming}</p>}
         {running && !streaming && <p className="msg-note msg-note--pending">Агент думает…</p>}
-        {unavailable && view && <p className="msg-note">{unavailable}</p>}
+        {settingsHint ? (
+          <div className={`conversation__notice${messages.length === 0 ? ' conversation__notice--alone' : ''}`}>
+            <p className="conversation__notice-text">{settingsHint}</p>
+            <button type="button" className="text-button text-button--accent" onClick={openSettings}>
+              Открыть настройки
+            </button>
+          </div>
+        ) : (
+          unavailable && view && <p className="msg-note">{unavailable}</p>
+        )}
         {error && <p className="msg-note msg-note--error" role="alert">{error}</p>}
       </div>
       <form

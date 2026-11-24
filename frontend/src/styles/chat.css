@@ -98,6 +98,21 @@
   color: var(--color-text-secondary);
 }
 
+/* Подсказка, что агенту нельзя писать без настроек */
+.conversation__notice {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.conversation__notice--alone { margin-bottom: auto; }
+.conversation__notice-text {
+  margin: 0;
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+
 .msg-user,
 .msg-agent {
   margin: 0;

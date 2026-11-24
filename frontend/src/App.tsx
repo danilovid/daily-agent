@@ -43,18 +43,22 @@ function Shell() {
   }, [query]);
   const searching = searchQuery !== '';
 
-  const cards = useMemo(() => ({
-    openTask: (id?: string) => setCard({ kind: 'task', id }),
-    openMeeting: (id?: string) => setCard({ kind: 'meeting', id }),
-  }), []);
-  const closeCard = useCallback(() => setCard(null), []);
-
-  const select = (s: Section) => {
+  const select = useCallback((s: Section) => {
     setQuery('');
     setSearchQuery('');
     setTagFilter(null);
     setSection(s);
-  };
+  }, []);
+
+  const cards = useMemo(() => ({
+    openTask: (id?: string) => setCard({ kind: 'task', id }),
+    openMeeting: (id?: string) => setCard({ kind: 'meeting', id }),
+    openSettings: () => {
+      setChatOpen(false);
+      select('settings');
+    },
+  }), [select]);
+  const closeCard = useCallback(() => setCard(null), []);
 
   const toggleTag = (tag: TagView) => {
     setQuery('');

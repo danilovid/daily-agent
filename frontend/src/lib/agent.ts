@@ -30,3 +30,13 @@ export function agentUnavailable(s: AgentStatusView | null): string | null {
       return 'Агент не подключён';
   }
 }
+
+/**
+ * Подсказка, если агенту нельзя писать, пока не поправить настройки:
+ * не задана модель или OpenCode не запускается. Иначе null.
+ */
+export function agentSettingsHint(s: AgentStatusView | null): string | null {
+  if (s?.state === 'ready' && !s.modelConfigured) return 'Чтобы писать агенту, задайте модель в настройках.';
+  if (s?.state === 'failed') return 'OpenCode не запускается. Подробности — в настройках.';
+  return null;
+}

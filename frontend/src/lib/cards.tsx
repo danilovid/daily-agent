@@ -1,4 +1,4 @@
-// Открытие карточек задачи и встречи с любого экрана.
+// Открытие карточек задачи и встречи и экрана настроек с любого экрана.
 
 import { createContext, useContext } from 'react';
 
@@ -12,6 +12,8 @@ export type CardsContextValue = {
   openTask: (id?: string) => void;
   /** Открыть карточку встречи. Без id — новая встреча. */
   openMeeting: (id?: string) => void;
+  /** Открыть экран «Настройки», например из чата, когда не задана модель. */
+  openSettings: () => void;
 };
 
 export const CardsContext = createContext<CardsContextValue | null>(null);
