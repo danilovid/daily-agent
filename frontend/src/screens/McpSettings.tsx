@@ -496,7 +496,7 @@ function ExternalAgent() {
       <h3 className="settings-section__title" id="settings-external">Подключить к своему агенту</h3>
       <div className="settings-group external-agent">
         <p className="settings-row__hint external-agent__text">
-          Встречи, бэклог и план на день доступны и вашему агенту — например, OpenCode в терминале. Добавьте сервер в его настройки. Он работает и без запущенного приложения.
+          Встречи, задачи и план на день доступны и вашему агенту — например, OpenCode в терминале: он читает их и может записать план, добавить или изменить встречу и задачу. Добавьте сервер в его настройки. Он работает и без запущенного приложения.
         </p>
         <div className="external-agent__block">
           <div className="external-agent__head">

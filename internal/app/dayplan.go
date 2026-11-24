@@ -28,6 +28,7 @@ const (
 
 // DayMeeting — встреча в сведениях о дне.
 type DayMeeting struct {
+	ID          string `json:"id"`
 	Title       string `json:"title"`
 	Start       string `json:"start"` // ЧЧ:ММ по местному времени
 	DurationMin int    `json:"duration_min"`
@@ -102,7 +103,7 @@ func (p *Planner) meetings(ctx context.Context, day string) ([]DayMeeting, int, 
 	out := []DayMeeting{}
 	total := 0
 	for _, o := range occs {
-		out = append(out, DayMeeting{Title: o.meeting.Title, Start: o.start.In(p.clock.loc()).Format("15:04"), DurationMin: o.meeting.DurationMin})
+		out = append(out, DayMeeting{ID: o.meeting.ID, Title: o.meeting.Title, Start: o.start.In(p.clock.loc()).Format("15:04"), DurationMin: o.meeting.DurationMin})
 		total += o.meeting.DurationMin
 	}
 	return out, total, nil

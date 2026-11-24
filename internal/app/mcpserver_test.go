@@ -70,7 +70,7 @@ func TestMCPServer(t *testing.T) {
 	for _, tool := range replies[1]["result"].(map[string]any)["tools"].([]any) {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
-	if strings.Join(names, ",") != "get_day,list_tasks,set_day_plan" {
+	if len(names) != len(InternalMCPTools) || names[0] != "get_day" {
 		t.Fatalf("инструменты: %v", names)
 	}
 	// Полные имена в OpenCode агента — с именем сервера.

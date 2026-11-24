@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -589,8 +590,12 @@ func TestLivePlanDay(t *testing.T) {
 			offered = r.Tools
 		}
 	}
-	if strings.Join(offered, ",") != "daily_get_day,daily_list_tasks,daily_set_day_plan" {
-		t.Fatalf("инструменты плана: %v", offered)
+	sorted := append([]string(nil), offered...)
+	want := append([]string(nil), InternalMCPTools...)
+	slices.Sort(sorted)
+	slices.Sort(want)
+	if !slices.Equal(sorted, want) {
+		t.Fatalf("инструменты приложения: %v", offered)
 	}
 
 	// Агент (заглушка) читает день и записывает план своим сервером.
@@ -616,6 +621,39 @@ func TestLivePlanDay(t *testing.T) {
 	}
 	if changes.Load() == 0 {
 		t.Fatal("наблюдение за базой не заметило план")
+	}
+
+	// По просьбе в чате агент добавляет встречу из приглашения и задачу.
+	tomorrow := time.Now().AddDate(0, 0, 1).Format(store.DateLayout)
+	meetingArgs := `{"title":"Ежедневная встреча","date":"` + tomorrow + `","start":"11:30","duration_min":30,"links":[{"title":"Созвон","url":"https://call.example.test/room-1"}]}`
+	taskArgs := `{"title":"Подготовить вопросы к встрече","status":"inbox"}`
+	before = len(model.Requests())
+	if err := lc.svc.Send(ctx, plan.ID, "[stub:call name=daily_create_meeting args="+meetingArgs+"] [stub:call name=daily_create_task args="+taskArgs+"]"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("запись встречи: %+v", d)
+	}
+	start, end, _ := clock.dayBounds(tomorrow)
+	occs, err := loadOccurrences(ctx, st, clock.loc(), start, end)
+	if err != nil || len(occs) != 1 || occs[0].meeting.Title != "Ежедневная встреча" || occs[0].start.In(clock.loc()).Format("15:04") != "11:30" {
+		t.Fatalf("встреча в базе: %+v %v", occs, err)
+	}
+	inbox, _ := st.TasksByStatus(ctx, store.StatusInbox)
+	found := false
+	for _, task := range inbox {
+		found = found || task.Title == "Подготовить вопросы к встрече" && task.Source == store.SourceOwn
+	}
+	if !found {
+		t.Fatalf("задача во «Входящих»: %+v", inbox)
+	}
+	// Ответ инструмента вернулся модели: агент видит, что записал.
+	answered := false
+	for _, r := range model.Requests()[before:] {
+		answered = answered || r.LastRole == "tool" && strings.Contains(r.LastText, `"created": true`)
+	}
+	if !answered {
+		t.Fatal("модель не получила ответ инструмента записи")
 	}
 
 	// Личный чат инструментов приложения не получает.
