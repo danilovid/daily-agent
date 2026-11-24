@@ -44,6 +44,16 @@ tasks:
     cmds:
       - go test ./...
 
+  test:integration:
+    summary: Тесты с настоящим OpenCode и заглушкой модели (без сети)
+    cmds:
+      - go test -tags integration ./internal/agent/
+
+  agent:check:
+    summary: Проверка связи с агентом, печатает только цифры. Пример — wails3 task agent:check STUB=1 или N=10
+    cmds:
+      - go run ./cmd/agentcheck {{if .STUB}}-stub{{end}} {{if .N}}-n {{.N}}{{end}}
+
   db:seed:
     summary: Наполняет пустую базу вымышленными тестовыми данными. Пример — wails3 task db:seed [DB=путь]
     cmds:

@@ -377,6 +377,7 @@ button, input, select, textarea, label, a { --wails-draggable: no-drag; }
   border-top: 1px solid var(--color-border);
 }
 .agent-status {
+  min-width: 0;
   margin: 0 auto 0 0;
   display: flex;
   align-items: center;
@@ -386,10 +387,17 @@ button, input, select, textarea, label, a { --wails-draggable: no-drag; }
   white-space: nowrap;
 }
 .agent-status__dot {
+  flex-shrink: 0;
   width: var(--status-dot-size);
   height: var(--status-dot-size);
   border-radius: var(--radius-round);
   background: var(--color-status-offline);
+}
+.agent-status__dot--online { background: var(--color-status-online); }
+.agent-status__dot--error { background: var(--color-danger); }
+.agent-status__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Главная область */

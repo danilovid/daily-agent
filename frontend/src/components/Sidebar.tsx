@@ -4,6 +4,7 @@ import type { TagView } from '../../bindings/daily-agent/internal/app';
 import { SECTION_TITLES, type Section } from '../sections';
 import { useLoad } from '../lib/data';
 import { agendaLine, shortDate } from '../lib/format';
+import { AgentStatus } from './AgentStatus';
 import { Calendar } from './Calendar';
 import { TagChip } from './TagChip';
 import {
@@ -163,10 +164,7 @@ export function Sidebar({ section, onSelect, query, onQueryChange, activeTagId, 
       </div>
 
       <div className="sidebar__footer">
-        <p className="agent-status">
-          <span className="agent-status__dot" aria-hidden="true" />
-          Агент не подключён
-        </p>
+        <AgentStatus />
         <button
           className={`icon-button${section === 'settings' ? ' icon-button--active' : ''}`}
           aria-label="Настройки"
