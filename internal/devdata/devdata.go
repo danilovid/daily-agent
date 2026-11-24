@@ -109,12 +109,13 @@ func Seed(ctx context.Context, s *store.Store, now time.Time) (Counts, error) {
 		m    store.Meeting
 		link *store.Link
 	}{
-		{store.Meeting{Title: "Планёрка команды", StartsAt: day(0, 10, 0), DurationMin: 30},
+		{store.Meeting{Title: "Планёрка команды", StartsAt: day(0, 10, 0), DurationMin: 30, Note: "Статус релиза и блокеры"},
 			&store.Link{Title: "Созвон", URL: "https://meet.example.test/standup"}},
 		{store.Meeting{Title: "Ревью архитектуры", StartsAt: day(0, 14, 30), DurationMin: 60}, nil},
 		{store.Meeting{Title: "Демо спринта", StartsAt: day(2, 11, 0), DurationMin: 45},
 			&store.Link{Title: "Созвон", URL: "https://meet.example.test/demo"}},
-		{store.Meeting{Title: "Ретроспектива", StartsAt: day(6, 16, 0), DurationMin: 30}, nil},
+		// Повторяющаяся встреча без ссылки: в списке встреч у неё кнопка «Ссылка на созвон».
+		{store.Meeting{Title: "Встреча один на один", StartsAt: day(6, 15, 0), DurationMin: 30, RepeatRule: "FREQ=WEEKLY"}, nil},
 	}
 	for _, item := range meetings {
 		m, err := s.CreateMeeting(ctx, item.m)
@@ -133,21 +134,24 @@ func Seed(ctx context.Context, s *store.Store, now time.Time) (Counts, error) {
 	tasks := []struct {
 		t    store.Task
 		tags []string
+		link *store.Link
 	}{
 		// Входящие: новые внешние записи.
 		{store.Task{Title: "Прислать оценку сроков по интеграции", Source: store.SourceTracker, ExternalID: "T-101",
-			Status: store.StatusInbox, URL: "https://tracker.example.test/T-101", CreatedAt: day(-1, 18, 40)}, []string{"Работа"}},
+			Status: store.StatusInbox, URL: "https://tracker.example.test/T-101", CreatedAt: day(-1, 18, 40)}, []string{"Работа"}, nil},
 		{store.Task{Title: "Проверить конфигурацию стенда", Source: store.SourceTracker, ExternalID: "T-102",
-			Status: store.StatusInbox, URL: "https://tracker.example.test/T-102", CreatedAt: day(0, 8, 15)}, []string{"Работа"}},
+			Status: store.StatusInbox, URL: "https://tracker.example.test/T-102", CreatedAt: day(0, 8, 15)}, []string{"Работа"}, nil},
 		{store.Task{Title: "Посмотреть черновик документа", Kind: store.KindMR, Source: store.SourceRepo, ExternalID: "17",
-			Status: store.StatusInbox, URL: "https://gitlab.example.test/team/docs/-/merge_requests/17", CreatedAt: day(0, 8, 52)}, []string{"Работа"}},
+			Status: store.StatusInbox, URL: "https://gitlab.example.test/team/docs/-/merge_requests/17", CreatedAt: day(0, 8, 52)}, []string{"Работа"}, nil},
 		// Бэклог.
 		{store.Task{Title: "Ответить Марине про сроки релиза", Source: store.SourceRepo, ExternalID: "issue-7",
-			Status: store.StatusBacklog, DueDate: today, URL: "https://gitlab.example.test/team/app/-/issues/7", CreatedAt: day(-3, 11, 0)}, []string{"Работа", "Релиз"}},
-		{store.Task{Title: "Подготовить заметки к ревью архитектуры", Status: store.StatusBacklog, CreatedAt: day(-2, 17, 5)}, []string{"Работа"}},
-		{store.Task{Title: "Продлить страховку на машину", Status: store.StatusBacklog, CreatedAt: day(-1, 21, 30)}, []string{"Личное"}},
+			Status: store.StatusBacklog, DueDate: today, URL: "https://gitlab.example.test/team/app/-/issues/7", CreatedAt: day(-3, 11, 0)}, []string{"Работа", "Релиз"}, nil},
+		{store.Task{Title: "Подготовить заметки к ревью архитектуры", Status: store.StatusBacklog, CreatedAt: day(-2, 17, 5),
+			Note: "Вопросы по схеме данных и поиску"}, []string{"Работа"},
+			&store.Link{Title: "Документ", URL: "https://docs.example.test/arch-review"}},
+		{store.Task{Title: "Продлить страховку на машину", Status: store.StatusBacklog, CreatedAt: day(-1, 21, 30)}, []string{"Личное"}, nil},
 		// Выполненная задача на экран «Сегодня» не попадает.
-		{store.Task{Title: "Обновить зависимости проекта", Status: store.StatusDone, CreatedAt: day(-4, 10, 0)}, []string{"Работа"}},
+		{store.Task{Title: "Обновить зависимости проекта", Status: store.StatusDone, CreatedAt: day(-4, 10, 0)}, []string{"Работа"}, nil},
 	}
 	for _, item := range tasks {
 		t, err := s.CreateTask(ctx, item.t)
@@ -156,6 +160,13 @@ func Seed(ctx context.Context, s *store.Store, now time.Time) (Counts, error) {
 		}
 		for _, name := range item.tags {
 			if err := s.AddTaskTag(ctx, t.ID, tags[name].ID); err != nil {
+				return nil, err
+			}
+		}
+		if item.link != nil {
+			l := *item.link
+			l.OwnerID = t.ID
+			if _, err := s.AddTaskLink(ctx, l); err != nil {
 				return nil, err
 			}
 		}

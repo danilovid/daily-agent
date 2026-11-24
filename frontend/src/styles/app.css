@@ -13,6 +13,10 @@ body,
 }
 
 body {
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height);
   -webkit-user-select: none;
   user-select: none;
   cursor: default;
@@ -20,7 +24,8 @@ body {
 
 a { color: var(--color-accent); }
 a:hover { color: var(--color-accent-hover); }
-button, input { font-family: inherit; }
+button, input, select, textarea { font-family: inherit; }
+input, textarea { -webkit-user-select: text; user-select: text; }
 input::placeholder { color: var(--color-text-tertiary); }
 
 :focus-visible {
@@ -38,7 +43,7 @@ input::placeholder { color: var(--color-text-tertiary); }
 
 /* Перетаскивание окна: Wails читает CSS-свойство --wails-draggable. */
 .drag-region { --wails-draggable: drag; }
-button, input, label, a { --wails-draggable: no-drag; }
+button, input, select, textarea, label, a { --wails-draggable: no-drag; }
 
 /* Окно */
 
@@ -47,10 +52,6 @@ button, input, label, a { --wails-draggable: no-drag; }
   width: 100%;
   height: 100%;
   background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-family);
-  font-size: var(--font-size-sm);
-  line-height: var(--line-height);
 }
 
 /* Общие элементы управления */
@@ -279,7 +280,8 @@ button, input, label, a { --wails-draggable: no-drag; }
 .sidebar__tag-list {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  flex-wrap: wrap;
+  column-gap: var(--space-6);
 }
 .tag-button {
   display: flex;
@@ -512,9 +514,26 @@ button, input, label, a { --wails-draggable: no-drag; }
   font-size: var(--font-size-2xs);
   color: var(--color-text-tertiary);
 }
+/* Названия в строках — кнопки, которые открывают карточку. */
+.meeting-row__title,
+.inbox-row__title,
+.task-row__title {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.meeting-row__title:hover,
+.inbox-row__title:hover,
+.task-row__title:hover { color: var(--color-accent-hover); }
+
 .meeting-row__title {
   flex: 1;
   min-width: 0;
+  min-height: var(--control-height);
   font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
@@ -558,7 +577,14 @@ button, input, label, a { --wails-draggable: no-drag; }
   flex-direction: column;
   gap: var(--space-1);
 }
-.inbox-row__title { font-size: var(--font-size-md); }
+.inbox-row__title {
+  align-self: flex-start;
+  max-width: 100%;
+  font-size: var(--font-size-md);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .inbox-row__meta {
   display: flex;
   align-items: center;
@@ -576,15 +602,6 @@ button, input, label, a { --wails-draggable: no-drag; }
   min-height: var(--task-row-height);
   border-top: 1px solid var(--color-border-row);
 }
-.task-row__label {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--space-12);
-  min-height: var(--task-row-height);
-  cursor: pointer;
-}
 .checkbox {
   width: var(--checkbox-size);
   height: var(--checkbox-size);
@@ -592,12 +609,26 @@ button, input, label, a { --wails-draggable: no-drag; }
   flex-shrink: 0;
   accent-color: var(--color-accent);
 }
+.task-row .checkbox { margin-right: var(--space-4); }
 .task-row__title {
+  flex: 1;
   min-width: 0;
+  display: block;
+  height: var(--task-row-height);
+  line-height: var(--task-row-height);
   font-size: var(--font-size-md);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.task-row--done .task-row__title {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+.task-row__status {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
 }
 .link-chip {
   display: flex;

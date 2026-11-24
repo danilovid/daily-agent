@@ -1,0 +1,87 @@
+/*
+ * Экраны «Встречи», «Входящие», «Бэклог» и поиск.
+ * Экран «Встречи» — по макету docs/mockups/meetings.html.
+ */
+
+.main[data-screen="meetings"] { gap: var(--space-16); }
+
+/* Переключатель «Предстоящие / Прошедшие» */
+
+.segmented {
+  display: flex;
+  align-self: flex-start;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+}
+.segmented__item {
+  height: var(--segment-height);
+  padding: 0 var(--space-16);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.segmented__item--active {
+  background: var(--color-bg-segment-active);
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.screen-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  height: var(--control-height);
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Список встреч по дням */
+
+.meetings-day__title { margin-bottom: var(--space-4); }
+.meetings-day:has(.meeting-row--current) .meetings-day__title { margin-bottom: var(--space-8); }
+
+.meeting-row--list {
+  gap: var(--space-12);
+  min-height: var(--meeting-list-row-height);
+}
+.meeting-row--list .meeting-row__time { width: var(--meeting-list-time-width); }
+.meetings-day .meeting-row--list:not(.meeting-row--current) {
+  border-top: 1px solid var(--color-border-row);
+  border-radius: 0;
+}
+.meetings-day .meeting-row--current + .meeting-row { border-top: 0; }
+
+.join-button__body--secondary {
+  background: var(--color-bg-chip);
+  color: var(--color-accent-soft-text);
+}
+
+/* Поиск в боковой панели */
+
+.search__clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--input-height);
+  margin-right: calc(-1 * var(--space-12));
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}

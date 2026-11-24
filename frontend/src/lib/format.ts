@@ -11,6 +11,63 @@ export const MONTHS_NOMINATIVE = [
 ];
 const WEEKDAYS = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота'];
 export const WEEKDAYS_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+// Короткие названия дней недели в порядке Date.getDay().
+const WEEKDAYS_SHORT_BY_DAY = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Заголовок дня в списке встреч: «Сегодня, 24 ноября», «Завтра, 25 ноября», «Четверг, 26 ноября». */
+export function dayHeading(day: string, today: string): string {
+  const d = parseDay(day);
+  const date = `${d.getDate()} ${MONTHS_GENITIVE[d.getMonth()]}`;
+  if (day === today) return `Сегодня, ${date}`;
+  if (day === addDays(today, 1)) return `Завтра, ${date}`;
+  if (day === addDays(today, -1)) return `Вчера, ${date}`;
+  return `${capitalize(WEEKDAYS[d.getDay()])}, ${date}`;
+}
+
+/** Дата в поле карточки: «Вт, 24 ноября». */
+export function pickerDate(day: string): string {
+  const d = parseDay(day);
+  return `${WEEKDAYS_SHORT_BY_DAY[d.getDay()]}, ${d.getDate()} ${MONTHS_GENITIVE[d.getMonth()]}`;
+}
+
+/** Срок в поле карточки задачи: «Сегодня», «Завтра» или «Вт, 24 ноября». */
+export function dueDateLabel(day: string, today: string): string {
+  if (!day) return 'Без срока';
+  if (day === today) return 'Сегодня';
+  if (day === addDays(today, 1)) return 'Завтра';
+  if (day === addDays(today, -1)) return 'Вчера';
+  return pickerDate(day);
+}
+
+/** «30 мин», «60 мин», «90 мин», «2 ч», «2 ч 30 мин» — как в макетах. */
+export function durationLabel(minutes: number): string {
+  if (minutes < 120) return `${minutes} мин`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+/** «4 предстоящие», «1 предстоящая», «5 предстоящих». */
+export function upcomingLabel(n: number): string {
+  return `${n} ${plural(n, ['предстоящая', 'предстоящие', 'предстоящих'])}`;
+}
+
+/** Время «ЧЧ:ММ» из Date. */
+export function hhmm(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Ближайшие полчаса после now: время начала новой встречи по умолчанию. */
+export function nextHalfHour(now: Date): Date {
+  const d = new Date(now);
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() < 30 ? 30 : 60);
+  return d;
+}
 
 /** Дата YYYY-MM-DD как локальная полночь. */
 export function parseDay(day: string): Date {
@@ -26,7 +83,7 @@ export function toDay(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function addDays(day: string, n: number): string {
+export function addDays(day: string, n: number): string {
   const d = parseDay(day);
   d.setDate(d.getDate() + n);
   return toDay(d);
@@ -86,6 +143,12 @@ export function dueLabel(due: string, today: string): { text: string; overdue: b
   if (due === today) return { text: 'срок сегодня', overdue: false };
   if (due === addDays(today, 1)) return { text: 'срок завтра', overdue: false };
   return { text: `срок ${shortDate(due)}`, overdue: false };
+}
+
+/** Подпись отсчёта для строки встречи: только у сегодняшних встреч, иначе null. */
+export function countdownLabel(startsAt: string, durationMin: number, now: Date): string | null {
+  if (toDay(new Date(startsAt)) !== toDay(now)) return null;
+  return meetingCountdown(startsAt, durationMin, now);
 }
 
 /** «через 42 мин», «через 1 ч 20 мин», «идёт» или null, если встреча закончилась. */

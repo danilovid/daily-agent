@@ -13,11 +13,16 @@
   --color-bg-input: #1E1E20;
   --color-bg-selected: #3A3A3E;
   --color-bg-chip: #2F2F33;
+  --color-bg-elevated: #2A2A2E;
+  --color-bg-segment-active: #45454A;
+  --color-overlay: rgba(0, 0, 0, 0.5);
 
   /* Цвета: линии */
   --color-border: #38383B;
   --color-border-strong: #45454A;
   --color-border-row: #2E2E31;
+  --color-border-muted: #55555A;
+  --color-border-selected: #8E8E93;
 
   /* Цвета: текст */
   --color-text: #F2F2F4;
@@ -33,6 +38,10 @@
   --color-accent-soft-bg: #1D3352;
   --color-accent-soft-text: #9CC9FF;
   --color-status-offline: #98989D;
+  --color-danger: #FF8A80;
+
+  /* Тени */
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
 
   /* Шрифт */
   --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
@@ -41,6 +50,7 @@
   --font-size-sm: 13px;
   --font-size-md: 14px;
   --font-size-lg: 15px;
+  --font-size-card-title: 18px;
   --font-size-xl: 20px;
   --font-size-2xl: 24px;
   --font-weight-regular: 400;
@@ -69,6 +79,7 @@
   --space-18: 18px;
   --space-20: 20px;
   --space-22: 22px;
+  --space-24: 24px;
   --space-36: 36px;
   --space-96: 96px;
 
@@ -76,6 +87,7 @@
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 12px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
   --radius-round: 50%;
 
@@ -106,6 +118,7 @@
 
   /* Размеры: иконки */
   --icon-xs: 12px;
+  --icon-chevron: 14px;
   --icon-sm: 15px;
   --icon-md: 16px;
   --icon-nav: 17px;
@@ -124,4 +137,18 @@
   --task-row-height: 44px;
   --section-header-height: 36px;
   --section-header-height-lg: 40px;
+
+  /* Размеры: экран «Встречи» */
+  --meeting-list-row-height: 60px;
+  --meeting-list-time-width: 60px;
+  --segment-height: 40px;
+
+  /* Размеры: карточки */
+  --modal-width: 560px;
+  --modal-width-sm: 360px;
+  --modal-top: 130px;
+  --checkbox-size-lg: 18px;
+  --textarea-height: 72px;
+  --link-name-width: 150px;
+  --swatch-size: 22px;
 }

@@ -90,3 +90,11 @@ export const ExternalIcon = (p: IconProps) => (
     <path d="M14 5h5v5" /><path d="M19 5l-8 8" /><path d="M18 14v4a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h4" />
   </Svg>
 );
+
+export const ChevronDownIcon = (p: IconProps) => (
+  <Svg size="var(--icon-chevron)" strokeWidth={2} {...p}><path d="M6 9l6 6 6-6" /></Svg>
+);
+
+export const SmallCheckIcon = (p: IconProps) => (
+  <Svg size="var(--icon-xs)" strokeWidth={2.4} {...p}><path d="M5 12.5l4.5 4.5L19 7.5" /></Svg>
+);

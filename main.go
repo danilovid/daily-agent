@@ -30,6 +30,8 @@ func main() {
 	defer db.Close()
 
 	clock := app.SystemClock()
+	// Ссылки задач и встреч открывает системный браузер. Само приложение по ним не ходит.
+	openURL := func(u string) error { return application.Get().Browser.OpenURL(u) }
 
 	wails := application.New(application.Options{
 		Name:        "Daily Agent",
@@ -37,6 +39,11 @@ func main() {
 		Services: []application.Service{
 			application.NewService(app.NewTodayService(db, clock)),
 			application.NewService(app.NewSidebarService(db, clock)),
+			application.NewService(app.NewMeetingsService(db, clock)),
+			application.NewService(app.NewTasksService(db, clock)),
+			application.NewService(app.NewTagsService(db)),
+			application.NewService(app.NewSearchService(db, clock)),
+			application.NewService(app.NewLinksService(db, openURL)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

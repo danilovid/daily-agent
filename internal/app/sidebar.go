@@ -51,11 +51,11 @@ func (s *SidebarService) Sidebar(ctx context.Context, month string) (SidebarView
 	if err != nil {
 		return SidebarView{}, err
 	}
-	todayMeetings, err := s.store.MeetingsBetween(ctx, dayStart, dayEnd)
+	todayOccs, err := loadOccurrences(ctx, s.store, s.clock.loc(), dayStart, dayEnd)
 	if err != nil {
 		return SidebarView{}, err
 	}
-	view.Counts.MeetingsToday = len(todayMeetings)
+	view.Counts.MeetingsToday = len(todayOccs)
 
 	if view.Counts.Chats, err = s.store.CountChats(ctx); err != nil {
 		return SidebarView{}, err
@@ -69,13 +69,13 @@ func (s *SidebarService) Sidebar(ctx context.Context, month string) (SidebarView
 
 	monthStart := time.Date(m.Year(), m.Month(), 1, 0, 0, 0, 0, s.clock.loc())
 	monthEnd := time.Date(m.Year(), m.Month()+1, 1, 0, 0, 0, 0, s.clock.loc())
-	meetings, err := s.store.MeetingsBetween(ctx, monthStart, monthEnd)
+	occs, err := loadOccurrences(ctx, s.store, s.clock.loc(), monthStart, monthEnd)
 	if err != nil {
 		return SidebarView{}, err
 	}
 	seen := map[int]bool{}
-	for _, mt := range meetings {
-		d := mt.StartsAt.In(s.clock.loc()).Day()
+	for _, o := range occs {
+		d := o.start.In(s.clock.loc()).Day()
 		if !seen[d] {
 			seen[d] = true
 			view.MeetingDays = append(view.MeetingDays, d)

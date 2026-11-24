@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -47,16 +48,21 @@ func TestMigrationsOnEmptyDatabase(t *testing.T) {
 	s, _ := openTemp(t)
 	ctx := context.Background()
 
-	got := tableNames(t, s)
+	// Кроме таблиц модели данных есть поисковый индекс FTS5 и его служебные таблицы.
+	var got []string
+	for _, name := range tableNames(t, s) {
+		if !strings.HasPrefix(name, "search_index") {
+			got = append(got, name)
+		}
+	}
 	want := append([]string(nil), wantTables...)
 	sort.Strings(want)
-	if len(got) != len(want) {
+	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("таблицы: получили %v, ждали %v", got, want)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("таблицы: получили %v, ждали %v", got, want)
-		}
+	var fts int
+	if err := s.DB().QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE name = 'search_index'`).Scan(&fts); err != nil || fts != 1 {
+		t.Fatalf("поисковый индекс: %d, %v", fts, err)
 	}
 
 	migrations, err := loadMigrations()
