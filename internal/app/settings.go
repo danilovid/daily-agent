@@ -201,6 +201,13 @@ func loadSources(ctx context.Context, st *store.Store, secrets Secrets, user age
 			src.notes = append(src.notes, fmt.Sprintf("Модель для личных задач %s больше недоступна: нет провайдера %s.", ref, ref.ProviderID))
 		}
 	}
+	// MCP-серверы: из настроек OpenCode пользователя и свои, токены — из Связки ключей.
+	entries, mcpEnv, err := mcpEntries(ctx, st, secrets, user, withKeys)
+	if err != nil {
+		return sources{}, err
+	}
+	mcpOptions(entries, setup)
+	setup.Env = append(setup.Env, mcpEnv...)
 	src.setup = setup
 	return src, nil
 }

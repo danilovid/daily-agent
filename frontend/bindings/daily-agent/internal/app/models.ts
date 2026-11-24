@@ -201,6 +201,91 @@ export interface LinkView {
 }
 
 /**
+ * MCPServerInput — новый MCP-сервер.
+ */
+export interface MCPServerInput {
+    "title": string;
+
+    /**
+     * Type: remote или local.
+     */
+    "type": string;
+    "url": string;
+
+    /**
+     * Command — команда запуска локального сервера, через пробелы.
+     */
+    "command": string;
+
+    /**
+     * Auth: oauth, token или none.
+     */
+    "auth": string;
+    "token": string;
+}
+
+/**
+ * MCPServerView — MCP-сервер на экране.
+ */
+export interface MCPServerView {
+    "name": string;
+    "title": string;
+
+    /**
+     * Source: app — добавлен здесь, opencode — из настроек OpenCode.
+     */
+    "source": string;
+    "type": string;
+
+    /**
+     * Address — адрес удалённого сервера или команда локального.
+     */
+    "address": string;
+    "auth": string;
+    "enabled": boolean;
+
+    /**
+     * Status: connected, needs_auth, needs_token, failed, disabled, pending, stopped.
+     */
+    "status": string;
+    "error": string;
+    "tokens": MCPTokenView[] | null;
+    "tools": MCPToolView[] | null;
+
+    /**
+     * Custom — инструменты выбраны вручную.
+     */
+    "custom": boolean;
+}
+
+/**
+ * MCPTokenView — секрет сервера: сохранён ли он. Значение в окно не уходит.
+ */
+export interface MCPTokenView {
+    "kind": string;
+    "key": string;
+    "saved": boolean;
+}
+
+/**
+ * MCPToolView — инструмент MCP-сервера на экране.
+ */
+export interface MCPToolView {
+    /**
+     * Name — полное имя для агента, Short — без сервера.
+     */
+    "name": string;
+    "short": string;
+    "description": string;
+    "allowed": boolean;
+
+    /**
+     * Write — инструмент похож на запись: в v0.1 агенту недоступен.
+     */
+    "write": boolean;
+}
+
+/**
  * MeetingDayView — встречи одного дня.
  */
 export interface MeetingDayView {

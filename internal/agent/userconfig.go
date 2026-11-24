@@ -48,6 +48,20 @@ type UserConfig struct {
 	// Skipped — провайдеры, которые не удалось перенести: например,
 	// провайдеры первой версии OpenCode с особым пакетом.
 	Skipped int
+	// MCP — MCP-серверы без секретов, по имени для агента.
+	MCP []UserMCPServer
+	// MCPSkipped — MCP-серверы, которые не удалось перенести.
+	MCPSkipped int
+}
+
+// MCPServer находит MCP-сервер по имени для агента.
+func (c UserConfig) MCPServer(name string) (UserMCPServer, bool) {
+	for _, s := range c.MCP {
+		if s.Name == name {
+			return s, true
+		}
+	}
+	return UserMCPServer{}, false
 }
 
 // Provider находит провайдера по идентификатору.
@@ -85,8 +99,8 @@ func UserConfigFiles() []string {
 }
 
 // LoadUserConfig читает провайдеров из настроек OpenCode пользователя.
-// Берётся только раздел провайдеров: плагины, MCP-серверы, агенты и права
-// пользователя в профиль приложения не попадают.
+// Берутся только провайдеры моделей и MCP-серверы, без секретов. Плагины,
+// агенты и права пользователя в профиль приложения не попадают.
 func LoadUserConfig() (UserConfig, error) { return ReadUserConfig(UserConfigFiles()...) }
 
 // ReadUserConfig читает провайдеров из файлов. Нет файла — не ошибка.
@@ -95,6 +109,8 @@ func ReadUserConfig(paths ...string) (UserConfig, error) {
 	var cfg UserConfig
 	found := map[string]UserProvider{}
 	var order []string
+	mcp := map[string]UserMCPServer{}
+	var mcpOrder []string
 	for _, path := range paths {
 		raw, err := os.ReadFile(path)
 		if errors.Is(err, fs.ErrNotExist) {
@@ -129,6 +145,21 @@ func ReadUserConfig(paths ...string) (UserConfig, error) {
 				cfg.Skipped++
 			}
 		}
+		// MCP-серверы: только описания, без секретов.
+		if section := asMap(doc["mcp"]); section != nil {
+			servers, skipped := readMCP(section)
+			cfg.MCPSkipped += skipped
+			for _, s := range servers {
+				if _, ok := mcp[s.Name]; !ok {
+					mcpOrder = append(mcpOrder, s.Name)
+				}
+				mcp[s.Name] = s
+			}
+		}
+	}
+	sort.Strings(mcpOrder)
+	for _, name := range mcpOrder {
+		cfg.MCP = append(cfg.MCP, mcp[name])
 	}
 	sort.Strings(order)
 	for _, id := range order {

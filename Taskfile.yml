@@ -59,6 +59,11 @@ tasks:
     cmds:
       - go run ./cmd/stubmodel {{if .PORT}}-port {{.PORT}}{{end}}
 
+  stub:mcp:
+    summary: Заглушка MCP-сервера на 127.0.0.1. Пример — wails3 task stub:mcp [PORT=8770] [OAUTH=1]
+    cmds:
+      - go run ./cmd/mcpstub {{if .PORT}}-port {{.PORT}}{{end}} {{if .OAUTH}}-oauth{{end}}
+
   db:seed:
     summary: Наполняет пустую базу вымышленными тестовыми данными. Пример — wails3 task db:seed [DB=путь]
     cmds:

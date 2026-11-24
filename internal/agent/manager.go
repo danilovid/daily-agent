@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	"daily-agent/internal/agent/stubmodel"
 )
 
 // Manager — агент приложения: надзор за OpenCode, который можно перезапустить
@@ -32,6 +34,15 @@ type Manager struct {
 	switching   bool
 	switchSince time.Time
 	binary      string
+
+	// MCP: служебная заглушка модели, прогрев после запуска и состояние серверов.
+	discovery  *stubmodel.Server
+	discoverMu sync.Mutex
+	// warming — сервер, для которого идёт прогрев; warmed — для которого он
+	// закончен. Пока не закончен, агент «запускается».
+	warming *Supervisor
+	warmed  *Supervisor
+	mcp     []MCPState
 }
 
 // NewManager создаёт агента. base — настройки надзора без моделей,
@@ -52,11 +63,13 @@ func normalizeSetup(s *Setup) *Setup {
 // serverConfig — то, что требует перезапуска сервера: провайдеры и ключи.
 func (m *Manager) serverConfig(s *Setup) Config {
 	cfg := m.base
-	tools := m.base.Options.AllowedTools
 	cfg.Options = s.Options
-	cfg.Options.AllowedTools = tools
+	cfg.Options.AllowedTools = append(append([]string(nil), m.base.Options.AllowedTools...), s.Options.AllowedTools...)
 	if s.Work != nil {
 		cfg.Options.Default = s.Work.String()
+	}
+	if len(s.Options.MCP) > 0 {
+		cfg.Options.Discovery = m.discoveryProvider()
 	}
 	cfg.ExtraEnv = append(append([]string(nil), m.base.ExtraEnv...), s.Env...)
 	return cfg
@@ -77,7 +90,19 @@ func (m *Manager) newSupervisor(s *Setup) *Supervisor {
 		if st.Binary != "" {
 			m.binary = st.Binary
 		}
+		// После каждого запуска MCP-серверы подключаются заново: прогрев.
+		warm := current && st.State == StateReady && len(m.setup.Options.MCP) > 0 && m.warming != sup && m.warmed != sup
+		if warm {
+			m.warming = sup
+		}
+		if current && st.State != StateReady {
+			m.mcp = nil
+			m.warmed = nil
+		}
 		m.mu.Unlock()
+		if warm {
+			go m.warmup(sup)
+		}
 		// Прежний сервер при смене модели останавливается молча.
 		if current {
 			m.notify()
@@ -131,8 +156,12 @@ func (m *Manager) Stop() {
 	m.mu.Lock()
 	m.stopped = true
 	sup := m.sup
+	discovery := m.discovery
 	m.mu.Unlock()
 	sup.Stop()
+	if discovery != nil {
+		discovery.Close()
+	}
 }
 
 // SetModel ставит одну свою модель для всех задач. nil — модели нет:
@@ -193,8 +222,12 @@ func (m *Manager) SetSetup(setup *Setup) {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	sup, switching, since, binary := m.sup, m.switching, m.switchSince, m.binary
+	warming := len(m.setup.Options.MCP) > 0 && m.warmed != m.sup
 	m.mu.Unlock()
 	st := sup.Status()
+	if warming && st.State == StateReady {
+		st.State = StateStarting
+	}
 	if switching {
 		st.State = StateStarting
 		st.Error = ""

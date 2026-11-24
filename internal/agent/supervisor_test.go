@@ -13,15 +13,27 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"daily-agent/internal/agent/mcpstub"
 )
 
 // Поддельный opencode: тестовый бинарник, запущенный с DA_FAKE_OPENCODE,
 // ведёт себя как «opencode --version» и «opencode serve».
 const fakeEnv = "DA_FAKE_OPENCODE"
 
+// fakeMCPEnv — тестовый бинарник с этой переменной работает как локальный
+// MCP-сервер (stdio). Значение — файл журнала вызовов.
+const fakeMCPEnv = "DA_FAKE_MCP_LOG"
+
 func TestMain(m *testing.M) {
 	if mode := os.Getenv(fakeEnv); mode != "" {
 		fakeOpenCode(mode)
+		return
+	}
+	if path := os.Getenv(fakeMCPEnv); path != "" {
+		log, _ := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+		mcpstub.ServeStdio(os.Stdin, os.Stdout, log, strings.Split(os.Getenv("DA_FAKE_MCP_ECHO"), ","))
+		log.Close()
 		return
 	}
 	os.Exit(m.Run())

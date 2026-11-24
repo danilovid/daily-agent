@@ -45,10 +45,17 @@ type Request struct {
 	Model     string // модель, которую запросил OpenCode
 	APIKey    string // ключ из заголовка Authorization; у заглушки он вымышленный
 	Stream    bool
-	Tools     []string // инструменты, которые OpenCode предложил модели
+	Tools     []string  // инструменты, которые OpenCode предложил модели
+	ToolInfo  []ToolDef // они же с описаниями
 	LastRole  string
 	LastText  string
 	ToolCalls []Call // вызовы, которые заглушка попросила в ответ
+}
+
+// ToolDef — инструмент, предложенный модели.
+type ToolDef struct {
+	Name        string
+	Description string
 }
 
 // Call — вызов инструмента.
@@ -115,7 +122,8 @@ type chatRequest struct {
 	} `json:"messages"`
 	Tools []struct {
 		Function struct {
-			Name string `json:"name"`
+			Name        string `json:"name"`
+			Description string `json:"description"`
 		} `json:"function"`
 	} `json:"tools"`
 }
@@ -149,6 +157,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 	rec := Request{Model: req.Model, Stream: req.Stream, APIKey: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")}
 	for _, t := range req.Tools {
 		rec.Tools = append(rec.Tools, t.Function.Name)
+		rec.ToolInfo = append(rec.ToolInfo, ToolDef{Name: t.Function.Name, Description: t.Function.Description})
 	}
 	if n := len(req.Messages); n > 0 {
 		last := req.Messages[n-1]

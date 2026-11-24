@@ -40,6 +40,9 @@
   --color-status-offline: #98989D;
   --color-status-online: #6FB1FF;
   --color-danger: #FF8A80;
+  --color-warning: #FFD60A;
+  --color-warning-text: #FFD98A;
+  --color-switch-knob: #FFFFFF;
 
   /* Тени */
   --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
@@ -152,6 +155,13 @@
   --settings-tab-height: 44px;
   --settings-row-height: 52px;
   --settings-value-max: 340px;
+  --mcp-row-height: 64px;
+  --pill-height: 24px;
+  --switch-width: 38px;
+  --switch-height: 22px;
+  --switch-knob: 18px;
+  --switch-hit-width: 52px;
+  --modal-list-max: 360px;
 
   /* Размеры: карточки */
   --modal-width: 560px;

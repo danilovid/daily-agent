@@ -148,3 +148,146 @@
 .model-form__key { display: flex; align-items: center; gap: var(--space-8); }
 .model-form__key .text-input { flex: 1; min-width: 0; }
 .model-form__actions { display: flex; gap: var(--space-8); }
+
+/* Раздел «MCP-серверы» по макету docs/mockups/settings-mcp.html */
+.mcp-intro {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  min-height: var(--control-height);
+}
+.mcp-intro__text { flex: 1; min-width: 0; }
+.mcp-intro__add {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-shrink: 0;
+  font-size: var(--font-size-md);
+}
+
+.mcp-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--mcp-row-height);
+  padding: 0 var(--space-6) 0 var(--space-14);
+}
+.mcp-row + .mcp-row { border-top: 1px solid var(--color-border-row); }
+.mcp-row__dot--online { background: var(--color-status-online); }
+.mcp-row__dot--warning { background: var(--color-warning); }
+.mcp-row__dot--error { background: var(--color-danger); }
+.mcp-row__dot--off { background: var(--color-border-muted); }
+.mcp-row .settings-row__dot { flex-shrink: 0; }
+.mcp-row__label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-7) 0;
+}
+.mcp-row__title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+.mcp-row__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mcp-row__pill {
+  display: flex;
+  align-items: center;
+  height: var(--pill-height);
+  padding: 0 var(--space-9);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-chip);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+.mcp-row__status {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.mcp-row__status--warning { color: var(--color-warning-text); }
+.mcp-row__status--error { color: var(--color-danger); }
+
+/* Переключатель «сервер включён» */
+.mcp-switch {
+  width: var(--switch-hit-width);
+  height: var(--control-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.mcp-switch:disabled { opacity: 0.6; cursor: default; }
+.mcp-switch__track {
+  position: relative;
+  display: block;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  border-radius: calc(var(--switch-height) / 2);
+  background: var(--color-border-muted);
+}
+.mcp-switch__track--on { background: var(--color-accent); }
+.mcp-switch__knob {
+  position: absolute;
+  top: calc((var(--switch-height) - var(--switch-knob)) / 2);
+  left: calc((var(--switch-height) - var(--switch-knob)) / 2);
+  width: var(--switch-knob);
+  height: var(--switch-knob);
+  border-radius: var(--radius-round);
+  background: var(--color-switch-knob);
+}
+.mcp-switch__track--on .mcp-switch__knob {
+  left: calc(var(--switch-width) - var(--switch-knob) - (var(--switch-height) - var(--switch-knob)) / 2);
+}
+
+.segmented__item:disabled { color: var(--color-text-tertiary); cursor: default; }
+
+/* Окно «Инструменты» */
+.mcp-tools {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  max-height: var(--modal-list-max);
+  overflow-y: auto;
+}
+.mcp-tools__item + .mcp-tools__item { border-top: 1px solid var(--color-border-row); }
+.mcp-tools__label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-10);
+  padding: var(--space-8) 0;
+  cursor: pointer;
+}
+.mcp-tools__label input { margin-top: var(--space-3); }
+.mcp-tools__text { display: flex; flex-direction: column; min-width: 0; }
+.mcp-tools__name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: var(--font-size-md);
+}
+.mcp-tools__desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.mcp-tools__tag {
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-chip);
+  font-size: var(--font-size-2xs);
+  color: var(--color-danger);
+}

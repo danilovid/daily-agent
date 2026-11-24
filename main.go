@@ -49,8 +49,8 @@ func main() {
 	keychain := agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)}
 	stub := os.Getenv(EnvStubModel) == "1"
 	backend, stopModel := newAgent(ctx, filepath.Join(filepath.Dir(dbPath), "agent"), db, keychain, stub)
-	// Провайдеры моделей из настроек OpenCode пользователя: только описания,
-	// без ключей, MCP-серверов, плагинов и прав.
+	// Провайдеры моделей и MCP-серверы из настроек OpenCode пользователя:
+	// только описания, без ключей, токенов, плагинов и прав.
 	userConfig := agent.LoadUserConfig
 	defer stopModel()
 
@@ -62,6 +62,7 @@ func main() {
 			emitChat(e)
 		}
 	})
+	settings := app.NewSettingsService(db, keychain, backend, clock, userConfig, stub)
 	eventsCtx, stopEvents := context.WithCancel(ctx)
 
 	wails := application.New(application.Options{
@@ -77,7 +78,9 @@ func main() {
 			application.NewService(app.NewLinksService(db, openURL)),
 			application.NewService(app.NewAgentService(backend.Status, clock)),
 			application.NewService(chats),
-			application.NewService(app.NewSettingsService(db, keychain, backend, clock, userConfig, stub)),
+			application.NewService(settings),
+			// Вход на MCP-сервер открывается в системном браузере.
+			application.NewService(app.NewMCPService(settings, backend, openURL)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

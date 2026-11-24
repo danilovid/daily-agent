@@ -346,3 +346,5 @@
 .chat-menu__item:hover { background: var(--color-bg-selected); }
 .chat-menu__item--danger { color: var(--color-danger); }
 .chat-menu__rename .text-input { width: 100%; }
+.chat-menu__item:disabled { color: var(--color-text-tertiary); cursor: default; }
+.chat-menu__item:disabled:hover { background: transparent; }

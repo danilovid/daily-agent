@@ -156,6 +156,53 @@ func TestRenderAllowedToolsComeAfterDeny(t *testing.T) {
 	}
 }
 
+func TestRenderMCPServers(t *testing.T) {
+	raw, err := Render(Options{
+		MCP: map[string]map[string]any{
+			"tracker": {"type": "remote", "url": "https://tracker.example.test/mcp", "codemode": true},
+			"repo":    {"type": "local", "command": []string{"repo-mcp"}},
+		},
+		Discovery:    &Provider{ID: DiscoveryProviderID, BaseURL: "http://127.0.0.1:9/v1", ModelID: "discovery"},
+		AllowedTools: []string{"tracker_get_issue", "repo_list*"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cfg struct {
+		MCP struct {
+			Servers map[string]map[string]any `json:"servers"`
+		} `json:"mcp"`
+		Providers    map[string]any `json:"providers"`
+		Experimental struct {
+			Policies []Rule `json:"policies"`
+		} `json:"experimental"`
+		Agents map[string]agentT `json:"agents"`
+	}
+	json.Unmarshal(raw, &cfg)
+	if len(cfg.MCP.Servers) != 2 || cfg.MCP.Servers["tracker"]["codemode"] != false || cfg.MCP.Servers["repo"]["codemode"] != false {
+		t.Fatalf("Code Mode должен быть выключен у всех серверов: %+v", cfg.MCP.Servers)
+	}
+	if _, ok := cfg.Providers[DiscoveryProviderID]; !ok {
+		t.Fatalf("служебный провайдер: %+v", cfg.Providers)
+	}
+	perms := cfg.Agents[AgentID].Permissions
+	if len(perms) != 3 || perms[0] != denyAll || perms[1].Action != "tracker_get_issue" || perms[2].Action != "repo_list*" {
+		t.Fatalf("права агента: %+v", perms)
+	}
+	for _, bad := range []Options{
+		{AllowedTools: []string{"execute"}},
+		{AllowedTools: []string{"exec*"}},
+		{AllowedTools: []string{"e*"}},
+		{MCP: map[string]map[string]any{"Трекер": {}}},
+		{MCP: map[string]map[string]any{"bad-name": {}}},
+		{Discovery: &Provider{ID: "other", BaseURL: "http://127.0.0.1:9/v1", ModelID: "d"}},
+	} {
+		if _, err := Render(bad); err == nil {
+			t.Errorf("ждали ошибку для %+v", bad)
+		}
+	}
+}
+
 func TestRenderRejectsBadInput(t *testing.T) {
 	bad := []Options{
 		{AllowedTools: []string{"shell; rm"}},

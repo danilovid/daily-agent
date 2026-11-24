@@ -22,19 +22,28 @@ type fakeOpenCode struct {
 	prompts    []string
 	titles     []string
 	interrupts int
-	messages   string            // ответ на GET …/message
-	models     map[string]string // сессия → модель, JSON
-	switches   []string          // переключения модели
-	modelList  string            // ответ на GET /api/model
-	catalog    string            // ответ на GET /api/integration
+	messages   string                         // ответ на GET …/message
+	models     map[string]string              // сессия → модель, JSON
+	switches   []string                       // переключения модели
+	perms      map[string][]map[string]string // сессия → права
+	modelList  string                         // ответ на GET /api/model
+	catalog    string                         // ответ на GET /api/integration
 }
 
 func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/session", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Permissions []map[string]string
+		}
+		json.NewDecoder(r.Body).Decode(&body)
 		f.mu.Lock()
 		f.sessions++
 		n := f.sessions
+		if f.perms == nil {
+			f.perms = map[string][]map[string]string{}
+		}
+		f.perms["ses_"+string(rune('0'+n))] = body.Permissions
 		f.mu.Unlock()
 		io.WriteString(w, `{"data":{"id":"ses_`+string(rune('0'+n))+`"}}`)
 	})
@@ -78,10 +87,18 @@ func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("PATCH /api/session/{id}", func(w http.ResponseWriter, r *http.Request) {
-		var body struct{ Title string }
+		var body struct {
+			Title       string
+			Permissions []map[string]string
+		}
 		json.NewDecoder(r.Body).Decode(&body)
 		f.mu.Lock()
-		f.titles = append(f.titles, body.Title)
+		if body.Title != "" {
+			f.titles = append(f.titles, body.Title)
+		}
+		if body.Permissions != nil {
+			f.perms[r.PathValue("id")] = body.Permissions
+		}
 		f.mu.Unlock()
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -126,7 +143,10 @@ type fakeBackend struct {
 	status   agent.Status
 	model    *agent.ModelRef
 	personal *agent.ModelRef
+	tools    []string
 }
+
+func (b *fakeBackend) AllowedTools() []string { return b.tools }
 
 func (b *fakeBackend) Client() (*agent.Client, error) {
 	if b.status.State != agent.StateReady {
@@ -476,5 +496,55 @@ func TestPersonalChat(t *testing.T) {
 	}
 	if err := h.svc.Send(ctx, chat.ID, "Ещё личный"); err != nil {
 		t.Fatalf("личный чат без рабочей модели: %v", err)
+	}
+}
+
+// allowed — инструменты, разрешённые правами сессии после запрета всего.
+func (f *fakeOpenCode) allowed(session string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []string
+	for i, p := range f.perms[session] {
+		if i == 0 && (p["action"] != "*" || p["effect"] != "deny") {
+			return "первое правило не запрет всего"
+		}
+		if i > 0 && p["effect"] == "allow" {
+			out = append(out, p["action"])
+		}
+	}
+	return strings.Join(out, ",")
+}
+
+func TestChatToolsOnlyForWorkChats(t *testing.T) {
+	h := newChatHarness(t)
+	ctx := context.Background()
+	h.backend.personal = &agent.ModelRef{ID: "cloud", ProviderID: "openai"}
+	h.backend.tools = []string{"tracker_get_issue"}
+
+	work, _ := h.svc.Create(ctx, false, false)
+	personal, _ := h.svc.Create(ctx, false, true)
+	if got := h.api.allowed("ses_1"); got != "tracker_get_issue" {
+		t.Fatalf("рабочий чат при создании: %q", got)
+	}
+	if got := h.api.allowed("ses_2"); got != "" {
+		t.Fatalf("личному чату не дают инструментов: %q", got)
+	}
+	// Сервер выключили: при следующем сообщении права сужаются.
+	h.backend.tools = nil
+	if err := h.svc.Send(ctx, work.ID, "Вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.api.allowed("ses_1"); got != "" {
+		t.Fatalf("рабочий чат после выключения сервера: %q", got)
+	}
+	h.backend.tools = []string{"tracker_get_issue", "repo_list_merge_requests"}
+	h.svc.setRunning(work.ID, false)
+	h.svc.Send(ctx, work.ID, "Ещё")
+	h.svc.Send(ctx, personal.ID, "Личный")
+	if got := h.api.allowed("ses_1"); got != "tracker_get_issue,repo_list_merge_requests" {
+		t.Fatalf("рабочий чат: %q", got)
+	}
+	if got := h.api.allowed("ses_2"); got != "" {
+		t.Fatalf("личный чат: %q", got)
 	}
 }

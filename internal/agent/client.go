@@ -115,6 +115,19 @@ type SessionOptions struct {
 	// Directory — рабочая папка агента.
 	Directory string
 	Model     *ModelRef
+	// Allow — инструменты, которые разрешены после запрета всего: только
+	// у рабочих чатов и служебных сессий.
+	Allow []string
+}
+
+// SessionPermissions — права сессии: запретить всё, затем разрешить
+// перечисленные инструменты. В OpenCode побеждает последнее подходящее правило.
+func SessionPermissions(allow []string) []agentprofile.Rule {
+	rules := agentprofile.DenyAll()
+	for _, tool := range allow {
+		rules = append(rules, agentprofile.Rule{Action: tool, Resource: "*", Effect: "allow"})
+	}
+	return rules
 }
 
 // Session — сессия OpenCode.
@@ -161,7 +174,7 @@ func (c *Client) EnsureModel(ctx context.Context, sessionID string, model *Model
 func (c *Client) CreateSession(ctx context.Context, opts SessionOptions) (Session, error) {
 	body := map[string]any{
 		"agent":       agentprofile.AgentID,
-		"permissions": agentprofile.DenyAll(),
+		"permissions": SessionPermissions(opts.Allow),
 	}
 	if opts.Title != "" {
 		body["title"] = opts.Title
@@ -389,4 +402,115 @@ func (c *Client) Integrations(ctx context.Context) ([]Integration, error) {
 		out = append(out, in)
 	}
 	return out, nil
+}
+
+// SetPermissions заменяет права сессии. Так чат получает текущий список
+// разрешённых инструментов: права сессии важнее прав агента.
+func (c *Client) SetPermissions(ctx context.Context, sessionID string, allow []string) error {
+	return c.do(ctx, http.MethodPatch, "/api/session/"+url.PathEscape(sessionID),
+		map[string]any{"permissions": SessionPermissions(allow)}, nil)
+}
+
+// DeleteSession удаляет сессию из базы OpenCode.
+func (c *Client) DeleteSession(ctx context.Context, sessionID string) error {
+	return c.do(ctx, http.MethodDelete, "/api/session/"+url.PathEscape(sessionID), nil, nil)
+}
+
+// MCPStatus — состояние MCP-сервера в OpenCode.
+type MCPStatus struct {
+	Name string `json:"name"`
+	// Status: connected, pending, disabled, failed, needs_auth.
+	Status        string `json:"status"`
+	Error         string `json:"error"`
+	IntegrationID string `json:"integrationID"`
+}
+
+// locationQuery — параметр рабочей папки для запросов OpenCode.
+func locationQuery(dir string) string {
+	if dir == "" {
+		return ""
+	}
+	return "?location%5Bdirectory%5D=" + url.QueryEscape(dir)
+}
+
+// MCPServers возвращает состояние MCP-серверов для рабочей папки. Запрос
+// заставляет OpenCode подключить их, если он ещё не начал.
+func (c *Client) MCPServers(ctx context.Context, dir string) ([]MCPStatus, error) {
+	var resp struct {
+		Data []struct {
+			Name   string `json:"name"`
+			Status struct {
+				Status string `json:"status"`
+				Error  string `json:"error"`
+			} `json:"status"`
+			IntegrationID string `json:"integrationID"`
+		} `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/mcp"+locationQuery(dir), nil, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]MCPStatus, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		out = append(out, MCPStatus{Name: d.Name, Status: d.Status.Status, Error: d.Status.Error, IntegrationID: d.IntegrationID})
+	}
+	return out, nil
+}
+
+// OAuthAttempt — начатый вход через браузер.
+type OAuthAttempt struct {
+	IntegrationID string
+	ID            string
+	// URL — адрес входа, его открывают в браузере.
+	URL string
+}
+
+// StartOAuth начинает вход на MCP-сервер через браузер. OpenCode сам примет
+// ответ сервера авторизации на 127.0.0.1 и сохранит токены у себя.
+func (c *Client) StartOAuth(ctx context.Context, integrationID, dir string) (OAuthAttempt, error) {
+	base := "/api/integration/" + url.PathEscape(integrationID)
+	var info struct {
+		Data struct {
+			Methods []struct {
+				ID   string `json:"id"`
+				Type string `json:"type"`
+			} `json:"methods"`
+		} `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+locationQuery(dir), nil, &info); err != nil {
+		return OAuthAttempt{}, err
+	}
+	method := ""
+	for _, m := range info.Data.Methods {
+		if m.Type == "oauth" {
+			method = m.ID
+			break
+		}
+	}
+	if method == "" {
+		return OAuthAttempt{}, errors.New("сервер не поддерживает вход через браузер")
+	}
+	var resp struct {
+		Data struct {
+			AttemptID string `json:"attemptID"`
+			URL       string `json:"url"`
+		} `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodPost, base+"/connect/oauth"+locationQuery(dir), map[string]any{"methodID": method}, &resp); err != nil {
+		return OAuthAttempt{}, err
+	}
+	if !strings.HasPrefix(resp.Data.URL, "https://") && !strings.HasPrefix(resp.Data.URL, "http://") {
+		return OAuthAttempt{}, errors.New("OpenCode не вернул адрес входа")
+	}
+	return OAuthAttempt{IntegrationID: integrationID, ID: resp.Data.AttemptID, URL: resp.Data.URL}, nil
+}
+
+// OAuthStatus — состояние входа: pending, complete, failed или expired.
+func (c *Client) OAuthStatus(ctx context.Context, a OAuthAttempt, dir string) (string, error) {
+	var resp struct {
+		Data struct {
+			Status string `json:"status"`
+		} `json:"data"`
+	}
+	err := c.do(ctx, http.MethodGet, "/api/integration/"+url.PathEscape(a.IntegrationID)+"/connect/oauth/"+url.PathEscape(a.ID)+locationQuery(dir), nil, &resp)
+	return resp.Data.Status, err
 }

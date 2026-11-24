@@ -66,8 +66,18 @@ type Provider struct {
 var (
 	idPattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
 	providerPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
-	toolPattern     = regexp.MustCompile(`^[A-Za-z0-9_]+\*?$`)
+	toolPattern     = regexp.MustCompile(`^[A-Za-z0-9_-]+\*?$`)
+	mcpNamePattern  = regexp.MustCompile(`^[a-z0-9][a-z0-9_]{0,39}$`)
 )
+
+// ValidMCPName — так может называться MCP-сервер агента: строчная латиница,
+// цифры и «_». Имя входит в имена инструментов: <сервер>_<инструмент>.
+func ValidMCPName(name string) bool { return mcpNamePattern.MatchString(name) }
+
+// DiscoveryProviderID — служебный провайдер: заглушка модели внутри
+// приложения, через которую ядро узнаёт, какие инструменты MCP-серверов
+// OpenCode предлагает агенту.
+const DiscoveryProviderID = "daily-discovery"
 
 // ValidProviderID — так может называться провайдер в настройках OpenCode.
 func ValidProviderID(id string) bool { return providerPattern.MatchString(id) }
@@ -99,8 +109,14 @@ type Options struct {
 	// своего провайдера, если он есть. Без модели OpenCode запустится, но
 	// отвечать не сможет.
 	Default string
+	// MCP — MCP-серверы агента по именам, готовые описания для раздела
+	// mcp.servers. Code Mode у всех выключен: инструменты идут модели
+	// напрямую и проверяются правами по одному.
+	MCP map[string]map[string]any
+	// Discovery — служебная заглушка модели для списка инструментов. Nil — нет.
+	Discovery *Provider
 	// AllowedTools — явный список разрешённых инструментов вида
-	// <сервер>_<инструмент> или <сервер>_*. Пока пустой.
+	// <сервер>_<инструмент> или <сервер>_<начало имени>*.
 	AllowedTools []string
 }
 
@@ -121,8 +137,12 @@ func Render(opts Options) ([]byte, error) {
 	// Разрешённые инструменты идут после запретов: в OpenCode побеждает
 	// последнее подходящее правило.
 	for _, tool := range opts.AllowedTools {
-		if !toolPattern.MatchString(tool) {
+		if !toolPattern.MatchString(tool) || !strings.Contains(tool, "_") {
 			return nil, fmt.Errorf("инструмент %q: ждали <сервер>_<инструмент>", tool)
+		}
+		// Code Mode выполняет код с fetch в обход прав: агенту он не разрешается.
+		if strings.HasPrefix("execute", strings.TrimSuffix(tool, "*")) {
+			return nil, fmt.Errorf("инструмент %q: выполнение кода агенту не разрешается", tool)
 		}
 		allow := map[string]any{"action": tool, "resource": "*", "effect": "allow"}
 		daily["permissions"] = append(daily["permissions"].([]any), allow)
@@ -172,6 +192,36 @@ func Render(opts Options) ([]byte, error) {
 		if model == "" {
 			model = p.ID + "/" + p.ModelID
 		}
+	}
+	if d := opts.Discovery; d != nil {
+		if d.ID != DiscoveryProviderID {
+			return nil, errors.New("служебный провайдер называется " + DiscoveryProviderID)
+		}
+		if err := d.validate(); err != nil {
+			return nil, err
+		}
+		providers[d.ID] = map[string]any{
+			"name":     "Служебная заглушка Daily Agent",
+			"package":  "@opencode/ai/providers/openai-compatible",
+			"settings": map[string]any{"baseURL": d.BaseURL},
+			"models":   map[string]any{d.ModelID: map[string]any{"name": d.ModelID}},
+		}
+		allowed = append(allowed, d.ID)
+	}
+	if len(opts.MCP) > 0 {
+		servers := map[string]any{}
+		for _, name := range sortedKeys(opts.MCP) {
+			if !mcpNamePattern.MatchString(name) {
+				return nil, fmt.Errorf("MCP-сервер %q: только строчная латиница, цифры и «_»", name)
+			}
+			def := map[string]any{}
+			for k, v := range opts.MCP[name] {
+				def[k] = v
+			}
+			def["codemode"] = false
+			servers[name] = def
+		}
+		cfg["mcp"] = map[string]any{"servers": servers}
 	}
 	if model != "" {
 		providerID, modelID, ok := strings.Cut(model, "/")

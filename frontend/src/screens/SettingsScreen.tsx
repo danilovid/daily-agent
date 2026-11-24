@@ -13,6 +13,7 @@ import { Field } from '../components/Fields';
 import { CloseIcon, UpDownIcon } from '../components/Icons';
 import { Modal } from '../components/Modal';
 import { errorText } from '../lib/data';
+import { McpSettings } from './McpSettings';
 
 type Tab = 'agent' | 'mcp' | 'plugins' | 'general';
 
@@ -23,7 +24,7 @@ const TABS: { value: Tab; label: string }[] = [
   { value: 'general', label: 'Общие' },
 ];
 
-/** Экран «Настройки». Пока готов раздел «Агент». */
+/** Экран «Настройки». Готовы разделы «Агент» и «MCP-серверы». */
 export function SettingsScreen() {
   const [tab, setTab] = useState<Tab>('agent');
   const current = TABS.find((t) => t.value === tab)!;
@@ -47,7 +48,9 @@ export function SettingsScreen() {
           </button>
         ))}
       </nav>
-      {tab === 'agent' ? <AgentSettings /> : <p className="placeholder">Раздел «{current.label}» появится в следующих шагах.</p>}
+      {tab === 'agent' && <AgentSettings />}
+      {tab === 'mcp' && <McpSettings />}
+      {tab !== 'agent' && tab !== 'mcp' && <p className="placeholder">Раздел «{current.label}» появится в следующих шагах.</p>}
     </>
   );
 }

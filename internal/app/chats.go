@@ -30,6 +30,17 @@ type AgentBackend interface {
 	Workspace() string
 	// ModelFor — модель для рабочих или личных задач; nil — не выбрана.
 	ModelFor(personal bool) *agent.ModelRef
+	// AllowedTools — инструменты MCP-серверов, разрешённые рабочим чатам.
+	AllowedTools() []string
+}
+
+// toolsFor — инструменты чата. Личный чат может идти в облачную модель,
+// поэтому инструментов рабочих систем не получает никогда.
+func (s *ChatsService) toolsFor(personal bool) []string {
+	if personal || s.backend == nil {
+		return nil
+	}
+	return s.backend.AllowedTools()
 }
 
 // ChatListItem — чат в списке.
@@ -378,6 +389,7 @@ func (s *ChatsService) Create(ctx context.Context, withAgenda, personal bool) (C
 		Title:     DefaultChatTitle,
 		Directory: s.backend.Workspace(),
 		Model:     s.backend.ModelFor(personal),
+		Allow:     s.toolsFor(personal),
 	})
 	if err != nil {
 		return ChatView{}, fmt.Errorf("новая сессия OpenCode: %w", err)
@@ -433,6 +445,11 @@ func (s *ChatsService) Send(ctx context.Context, id, text string) error {
 	if err := c.EnsureModel(ctx, chat.SessionID, s.backend.ModelFor(personal)); err != nil {
 		s.setRunning(chat.ID, false)
 		return fmt.Errorf("модель чата: %w", err)
+	}
+	// Права — текущие: сервер могли выключить или выбрать другие инструменты.
+	if err := c.SetPermissions(ctx, chat.SessionID, s.toolsFor(personal)); err != nil {
+		s.setRunning(chat.ID, false)
+		return fmt.Errorf("права чата: %w", err)
 	}
 	if err := c.Prompt(ctx, chat.SessionID, text); err != nil {
 		s.setRunning(chat.ID, false)

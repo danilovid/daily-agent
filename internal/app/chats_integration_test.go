@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"daily-agent/internal/agent"
+	"daily-agent/internal/agent/mcpstub"
 	"daily-agent/internal/agent/stubmodel"
 	"daily-agent/internal/store"
 )
@@ -54,12 +55,19 @@ func startLiveChat(t *testing.T, st *store.Store, root string, stub *stubmodel.S
 	return lc
 }
 
+// waitReady ждёт, пока агент выйдет на связь, включая прогрев MCP-серверов.
 func (lc *liveChat) waitReady() {
 	lc.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	if err := lc.backend.WaitReady(ctx); err != nil {
 		lc.t.Fatal(err)
+	}
+	for lc.backend.Status().State != agent.StateReady {
+		if ctx.Err() != nil {
+			lc.t.Fatalf("агент не вышел на связь: %+v", lc.backend.Status())
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -337,7 +345,7 @@ func TestLiveWorkAndPersonalModels(t *testing.T) {
       "settings": {"baseURL": "`+home.URL+`"},
       "models": {"stub-home": {"name": "Личная"}}},
   },
-  "mcp": {"tracker": {"type": "remote", "url": "https://tracker.example.test/mcp"}},
+  "mcp": {"tracker": {"type": "local", "command": ["false"], "enabled": false}},
 }`), 0o600)
 	user, err := agent.ReadUserConfig(cfgPath)
 	if err != nil {
@@ -424,5 +432,100 @@ func TestLiveWorkAndPersonalModels(t *testing.T) {
 		if strings.Contains(r.LastText, "Рабочий") {
 			t.Fatal("рабочий вопрос ушёл в личную модель")
 		}
+	}
+}
+
+func TestLiveMCPInChats(t *testing.T) {
+	model, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer model.Close()
+	tracker, err := mcpstub.StartHTTP(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tracker.Close()
+	t.Setenv(agent.EnvModelURL, "")
+	t.Setenv(agent.EnvModelID, "")
+	cfgPath := filepath.Join(t.TempDir(), "opencode.json")
+	os.WriteFile(cfgPath, []byte(`{"mcp": {"servers": {"tracker": {"type": "remote", "url": "`+tracker.URL+`",
+		"oauth": false, "headers": {"Authorization": "Bearer test-secret-in-config"}}}}}`), 0o600)
+	user, err := agent.ReadUserConfig(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := openStore(t)
+	tmp, _ := os.MkdirTemp("", "da-mcpchat-")
+	defer os.RemoveAll(tmp)
+	root, _ := filepath.EvalSymlinks(tmp)
+	ctx := context.Background()
+
+	lc := startLiveChat(t, st, root, model)
+	secrets := &memSecrets{}
+	settings := NewSettingsService(st, secrets, lc.backend, SystemClock(), func() (agent.UserConfig, error) { return user, nil }, false)
+	mcp := NewMCPService(settings, lc.backend, func(string) error { return nil })
+	if _, err := settings.SaveModel(ctx, ModelSettingsInput{URL: model.URL, ModelID: stubmodel.ModelID}); err != nil {
+		t.Fatal(err)
+	}
+	list, err := mcp.List(ctx)
+	if err != nil || len(list) != 1 || list[0].Status != "needs_token" {
+		t.Fatalf("сервер без токена: %+v %v", list, err)
+	}
+	if _, err := mcp.SetToken(ctx, "tracker", "header", "Authorization", "test-token-live"); err != nil {
+		t.Fatal(err)
+	}
+	lc.waitReady()
+	list, _ = mcp.List(ctx)
+	var allowed []string
+	for _, tool := range list[0].Tools {
+		if tool.Allowed {
+			allowed = append(allowed, tool.Short)
+		}
+	}
+	if list[0].Status != "connected" || strings.Join(allowed, ",") != "get_issue,list_issues" {
+		t.Fatalf("сервер с токеном: %+v", list[0])
+	}
+	time.Sleep(1500 * time.Millisecond) // подписка на события открывается заново после перезапуска
+
+	work, err := lc.svc.Create(ctx, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lc.svc.Send(ctx, work.ID, `[stub:call name=tracker_get_issue args={"id":"TEST-1"}]`); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("рабочий чат: %+v", d)
+	}
+	if calls := tracker.Calls(); len(calls) != 1 || calls[0] != "get_issue" {
+		t.Fatalf("вызовы трекера из рабочего чата: %v", calls)
+	}
+	if h := tracker.Headers(); h[len(h)-1].Get("Authorization") != "Bearer test-token-live" {
+		t.Fatalf("токен трекера: %q", h[len(h)-1].Get("Authorization"))
+	}
+
+	// Личный чат: те же слова, но инструментов рабочих систем нет.
+	personal, err := lc.svc.Create(ctx, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lc.svc.Send(ctx, personal.ID, `[stub:call name=tracker_get_issue args={"id":"TEST-1"}]`); err != nil {
+		t.Fatal(err)
+	}
+	lc.waitFor("done")
+	if calls := tracker.Calls(); len(calls) != 1 {
+		t.Fatalf("личный чат вызвал трекер: %v", calls)
+	}
+	// Запись из рабочего чата не проходит.
+	if err := lc.svc.Send(ctx, work.ID, `[stub:call name=tracker_create_issue args={"title":"x"}]`); err != nil {
+		t.Fatal(err)
+	}
+	lc.waitFor("done")
+	if calls := tracker.Calls(); len(calls) != 1 {
+		t.Fatalf("запись дошла до трекера: %v", calls)
+	}
+	if cfg, _ := os.ReadFile(filepath.Join(root, "config", "opencode", "opencode.json")); strings.Contains(string(cfg), "test-token-live") || strings.Contains(string(cfg), "test-secret-in-config") {
+		t.Fatal("токен в настройках OpenCode")
 	}
 }

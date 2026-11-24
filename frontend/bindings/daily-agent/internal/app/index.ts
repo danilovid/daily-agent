@@ -4,6 +4,7 @@
 import * as AgentService from "./agentservice.js";
 import * as ChatsService from "./chatsservice.js";
 import * as LinksService from "./linksservice.js";
+import * as MCPService from "./mcpservice.js";
 import * as MeetingsService from "./meetingsservice.js";
 import * as SearchService from "./searchservice.js";
 import * as SettingsService from "./settingsservice.js";
@@ -15,6 +16,7 @@ export {
     AgentService,
     ChatsService,
     LinksService,
+    MCPService,
     MeetingsService,
     SearchService,
     SettingsService,
@@ -35,6 +37,10 @@ export type {
     ConnectionCheck,
     LinkInput,
     LinkView,
+    MCPServerInput,
+    MCPServerView,
+    MCPTokenView,
+    MCPToolView,
     MeetingDayView,
     MeetingDetail,
     MeetingInput,
