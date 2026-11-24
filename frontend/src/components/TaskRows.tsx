@@ -57,7 +57,7 @@ export function InboxRow({ task: t, today }: { task: TaskView; today: string }) 
 }
 
 /** Строка задачи из бэклога или выполненной: отметка, название, ссылка, теги, срок. */
-export function TaskRow({ task: t, today, showStatus }: { task: TaskView; today: string; showStatus?: boolean }) {
+export function TaskRow({ task: t, today, showStatus, onPlan }: { task: TaskView; today: string; showStatus?: boolean; onPlan?: () => void }) {
   const { openTask } = useCards();
   const act = useAction();
   const due = t.status === 'done' ? null : dueLabel(t.dueDate, today);
@@ -77,6 +77,11 @@ export function TaskRow({ task: t, today, showStatus }: { task: TaskView; today:
       <TaskLinkChip task={t} />
       {t.tags?.map((tag) => <TagChip key={tag.id} tag={tag} variant="row" />)}
       {due && <span className="soft-badge">{due.text}</span>}
+      {onPlan && (
+        <button type="button" className="text-button text-button--accent task-row__plan" aria-label={`В план на сегодня: ${t.title}`} onClick={onPlan}>
+          В план
+        </button>
+      )}
     </div>
   );
 }

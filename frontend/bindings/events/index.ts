@@ -18,3 +18,8 @@ export const AgentStatus = "agent:status";
  */
 export const ChatEvent = "chat:event";
 
+/**
+ * Name of the custom event "data:changed".
+ */
+export const DataChanged = "data:changed";
+

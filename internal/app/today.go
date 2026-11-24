@@ -43,6 +43,18 @@ func (s *TodayService) Today(ctx context.Context, day string) (TodayView, error)
 	if summary != nil {
 		view.Summary = &SummaryView{Text: summary.Text, CreatedAt: s.clock.format(summary.CreatedAt)}
 	}
+	if view.Plan, err = NewPlanner(s.store, s.clock).Plan(ctx, day); err != nil {
+		return TodayView{}, err
+	}
+	plan, err := s.store.DayPlan(ctx, day)
+	if err != nil {
+		return TodayView{}, err
+	}
+	// Пояснение агента к плану — сводка дня, если оно свежее утренней сводки.
+	if p := view.Plan; p != nil && p.Summary != "" && p.Source == store.PlanSourceAgent &&
+		(summary == nil || plan.UpdatedAt.After(summary.CreatedAt)) {
+		view.Summary = &SummaryView{Text: p.Summary, CreatedAt: p.UpdatedAt}
+	}
 
 	occs, err := loadOccurrences(ctx, s.store, s.clock.loc(), start, end)
 	if err != nil {

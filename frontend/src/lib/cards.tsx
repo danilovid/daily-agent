@@ -14,6 +14,8 @@ export type CardsContextValue = {
   openMeeting: (id?: string) => void;
   /** Открыть экран «Настройки», например из чата, когда не задана модель. */
   openSettings: () => void;
+  /** Открыть маленький чат с этим чатом, например после «Составить план». */
+  openChat: (id: string) => void;
 };
 
 export const CardsContext = createContext<CardsContextValue | null>(null);

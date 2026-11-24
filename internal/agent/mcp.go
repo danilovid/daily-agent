@@ -129,9 +129,12 @@ func (m *Manager) discover(ctx context.Context, c *Client) []MCPState {
 	defer m.discoverMu.Unlock()
 	dir := m.Workspace()
 	m.mu.Lock()
-	expected := make([]string, 0, len(m.setup.Options.MCP))
+	expected := make([]string, 0, len(m.setup.Options.MCP)+1)
 	for name := range m.setup.Options.MCP {
 		expected = append(expected, name)
+	}
+	if m.base.Internal != nil {
+		expected = append(expected, m.base.Internal.Name)
 	}
 	m.mu.Unlock()
 	// OpenCode читает настройки лениво: запрос агентов заставляет их загрузить.
@@ -317,6 +320,15 @@ func (m *Manager) AllowedTools() []string {
 	var out []string
 	for _, st := range m.mcp {
 		if st.Status != "connected" {
+			continue
+		}
+		// Свой сервер приложения: его инструменты разрешены всегда.
+		if in := m.base.Internal; in != nil && st.Name == in.Name {
+			for _, t := range st.Tools {
+				if containsString(in.Tools, t.Name) {
+					out = append(out, t.Name)
+				}
+			}
 			continue
 		}
 		explicit, custom := m.setup.MCPTools[st.Name]

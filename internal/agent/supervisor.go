@@ -42,6 +42,18 @@ type Config struct {
 	StaleName string
 	// Logf — журнал событий запуска. Только события, без содержимого запросов.
 	Logf func(format string, args ...any)
+	// Internal — свой MCP-сервер приложения. Подключён всегда, его
+	// инструменты разрешены рабочим чатам. Nil — нет.
+	Internal *InternalMCP
+}
+
+// InternalMCP — свой MCP-сервер приложения: встречи, бэклог и план на день.
+type InternalMCP struct {
+	Name       string
+	Definition map[string]any
+	// Tools — его инструменты для рабочих чатов, полные имена. Правило
+	// «только чтение» к ним не применяется: запись плана — их назначение.
+	Tools []string
 }
 
 func (c *Config) defaults() {

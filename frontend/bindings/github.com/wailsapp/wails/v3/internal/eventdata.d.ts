@@ -14,6 +14,7 @@ declare module "@wailsio/runtime" {
         interface CustomEvents {
             "agent:status": app$0.AgentStatusView;
             "chat:event": app$0.ChatEvent;
+            "data:changed": app$0.DataChanged;
         }
     }
 }

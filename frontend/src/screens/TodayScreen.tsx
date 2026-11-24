@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TodayService } from '../../bindings/daily-agent/internal/app';
-import type { MeetingView, TaskView } from '../../bindings/daily-agent/internal/app';
-import { PlusIcon } from '../components/Icons';
+import { ChatsService, DayPlanService, TasksService, TodayService } from '../../bindings/daily-agent/internal/app';
+import type { MeetingView, PlanView, TaskView } from '../../bindings/daily-agent/internal/app';
+import { CloseIcon, PlusIcon } from '../components/Icons';
 import { MeetingRow } from '../components/MeetingRow';
 import { InboxRow, TaskRow } from '../components/TaskRows';
+import { agentUnavailable, useAgentStatus } from '../lib/agent';
 import { useCards } from '../lib/cards';
-import { useLoad } from '../lib/data';
+import { useAction, useData, useLoad } from '../lib/data';
 import { countdownLabel, longDate, meetingCountdown, toDay } from '../lib/format';
 
 /** Текущее время, которое обновляется раз в 30 секунд. */
@@ -51,9 +52,16 @@ export function TodayScreen() {
         </section>
       )}
 
+      {data && <DayPlan plan={data.plan} />}
       {data && <Agenda meetings={data.meetings ?? []} now={now} />}
       {data && <Inbox tasks={data.inbox ?? []} today={data.day} />}
-      {data && <Backlog tasks={data.backlog ?? []} today={data.day} />}
+      {data && (
+        <Backlog
+          tasks={data.backlog ?? []}
+          today={data.day}
+          planned={new Set((data.plan?.items ?? []).map((it) => it.task.id))}
+        />
+      )}
     </>
   );
 }
@@ -91,8 +99,9 @@ function Inbox({ tasks, today }: { tasks: TaskView[]; today: string }) {
   );
 }
 
-function Backlog({ tasks, today }: { tasks: TaskView[]; today: string }) {
+function Backlog({ tasks, today, planned }: { tasks: TaskView[]; today: string; planned: Set<string> }) {
   const { openTask } = useCards();
+  const act = useAction();
   return (
     <section className="section">
       <div className="section__header section__header--lg">
@@ -103,7 +112,88 @@ function Backlog({ tasks, today }: { tasks: TaskView[]; today: string }) {
         </button>
       </div>
       {tasks.length === 0 && <p className="section__empty section__empty--ruled">В бэклоге пусто</p>}
-      {tasks.map((t) => <TaskRow key={t.id} task={t} today={today} />)}
+      {tasks.map((t) => (
+        <TaskRow
+          key={t.id}
+          task={t}
+          today={today}
+          onPlan={planned.has(t.id) ? undefined : () => act(() => DayPlanService.Add(t.id))}
+        />
+      ))}
+    </section>
+  );
+}
+
+/** Длительность: «45 мин», «2 ч», «1 ч 30 мин». */
+export function minutesLabel(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h === 0) return `${m} мин`;
+  return m === 0 ? `${h} ч` : `${h} ч ${m} мин`;
+}
+
+/** План на день: задачи, которые выбрал агент или автор, с оценкой и причиной. */
+function DayPlan({ plan }: { plan: PlanView | null }) {
+  const { openChat } = useCards();
+  const { showError } = useData();
+  const act = useAction();
+  const status = useAgentStatus();
+  const blocked = agentUnavailable(status);
+  const [asking, setAsking] = useState(false);
+  const items = plan?.items ?? [];
+
+  const ask = () => {
+    setAsking(true);
+    ChatsService.PlanDay()
+      .then((chat) => openChat(chat.id))
+      .catch(showError)
+      .finally(() => setAsking(false));
+  };
+
+  return (
+    <section className="section">
+      <div className="section__header section__header--lg">
+        <h3 className="section__title">План на день</h3>
+        {items.length > 0 && <span className="section__count">{items.length}</span>}
+        {plan && items.length > 0 && (
+          <span className="section__hint">
+            {minutesLabel(plan.totalMin)} из {minutesLabel(plan.freeMin)} свободных
+          </span>
+        )}
+        <button
+          type="button"
+          className="text-button text-button--accent plan__ask"
+          onClick={ask}
+          disabled={asking || !!blocked}
+          title={blocked ?? undefined}
+        >
+          {asking ? 'Прошу агента…' : plan ? 'Составить заново' : 'Составить план'}
+        </button>
+      </div>
+      {items.length === 0 && (
+        <p className="section__empty section__empty--ruled">
+          {plan ? 'В плане нет задач.' : 'Плана пока нет. Агент выберет из бэклога задачи, которые помещаются в свободное время.'}
+        </p>
+      )}
+      {items.map((it) => (
+        <div key={it.task.id} className={`plan-row${it.task.status === 'done' ? ' plan-row--done' : ''}`}>
+          <input
+            type="checkbox"
+            className="checkbox"
+            checked={it.task.status === 'done'}
+            aria-label={`${it.task.status === 'done' ? 'Вернуть в работу' : 'Отметить выполненной'}: ${it.task.title}`}
+            onChange={(e) => act(() => TasksService.SetStatus(it.task.id, e.target.checked ? 'done' : 'backlog'))}
+          />
+          <div className="plan-row__text">
+            <span className="plan-row__title">{it.task.title}</span>
+            {it.reason && <span className="plan-row__reason">{it.reason}</span>}
+          </div>
+          {it.estimateMin > 0 && <span className="soft-badge">{minutesLabel(it.estimateMin)}</span>}
+          <button type="button" className="icon-button" aria-label={`Убрать из плана: ${it.task.title}`} onClick={() => act(() => DayPlanService.Remove(it.task.id))}>
+            <CloseIcon size="var(--icon-sm)" />
+          </button>
+        </div>
+      ))}
     </section>
   );
 }

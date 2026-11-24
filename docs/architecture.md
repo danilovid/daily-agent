@@ -106,6 +106,8 @@
 | `meetings` | Встречи, введённые вручную и полученные из сервиса | `id`, `source` (manual, meetings), `external_id`, `title`, `starts_at`, `duration_min`, `repeat_rule`, `note`, `created_at`, `updated_at`, `deleted_at` |
 | `meeting_links` | Ссылки на созвон | `id`, `meeting_id`, `title`, `url`, `position` |
 | `summaries` | Утренние сводки | `id`, `day`, `text`, `session_id`, `created_at` |
+| `day_plans` | План на день: пояснение, кто составил | `id`, `day`, `summary`, `source` (agent, manual), `session_id`, `created_at`, `updated_at`, `deleted_at` |
+| `day_plan_items` | Задачи плана с оценкой и причиной | `plan_id`, `task_id`, `position`, `estimate_min`, `reason` |
 | `chats` | Ссылки на сессии OpenCode | `id`, `session_id`, `title`, `kind` (user, scheduled), `created_at`, `updated_at` |
 | `sync_state` | Состояние обновления по каждому источнику | `source`, `last_started_at`, `last_success_at`, `last_error` |
 | `agent_runs` | Журнал запусков агента | `id`, `command`, `started_at`, `duration_ms`, `ok`, `error` |
@@ -163,6 +165,8 @@ OpenCode — агент для работы с кодом. Он умеет за�
 | 6 | Утренняя сводка и живой экран «Сегодня» | IDA-27, IDA-28 |
 | 7 | Настройки. Раздел «Агент» сделан раньше, после шага 4: связь с OpenCode, модели для рабочих и личных задач, провайдеры из настроек OpenCode и каталога, рабочие и личные чаты. Раздел «MCP-серверы» (IDA-41, без плагинов) тоже сделан раньше: внешние серверы только на чтение, без Code Mode | IDA-40, IDA-41 |
 | 8 | Неделя ежедневного использования | IDA-29 |
+
+Сделано вне очереди: план на день по просьбе в чате. Агент читает встречи и бэклог через свой MCP-сервер приложения (`daily-agent mcp`) и записывает план; тот же сервер подключается к внешнему агенту. Запуск по расписанию — следующим шагом вместе с утренней сводкой (IDA-27).
 
 После шага 2 приложением можно пользоваться без агента. Шаг 0 идёт параллельно с шагами 1 и 2.
 

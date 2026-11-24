@@ -68,12 +68,24 @@ func (m *Manager) serverConfig(s *Setup) Config {
 	if s.Work != nil {
 		cfg.Options.Default = s.Work.String()
 	}
-	if len(s.Options.MCP) > 0 {
+	if in := m.base.Internal; in != nil {
+		servers := map[string]map[string]any{}
+		for k, v := range s.Options.MCP {
+			servers[k] = v
+		}
+		servers[in.Name] = in.Definition
+		cfg.Options.MCP = servers
+		cfg.Options.AllowedTools = append(cfg.Options.AllowedTools, in.Tools...)
+	}
+	if len(cfg.Options.MCP) > 0 {
 		cfg.Options.Discovery = m.discoveryProvider()
 	}
 	cfg.ExtraEnv = append(append([]string(nil), m.base.ExtraEnv...), s.Env...)
 	return cfg
 }
+
+// hasMCP — у агента есть MCP-серверы, свои или пользователя. Вызывается под m.mu.
+func (m *Manager) hasMCP() bool { return len(m.setup.Options.MCP) > 0 || m.base.Internal != nil }
 
 // sameServer — новые модели не требуют перезапуска: те же провайдеры и
 // ключи. Модель по умолчанию не в счёт: сессии получают модель явно.
@@ -91,7 +103,7 @@ func (m *Manager) newSupervisor(s *Setup) *Supervisor {
 			m.binary = st.Binary
 		}
 		// После каждого запуска MCP-серверы подключаются заново: прогрев.
-		warm := current && st.State == StateReady && len(m.setup.Options.MCP) > 0 && m.warming != sup && m.warmed != sup
+		warm := current && st.State == StateReady && m.hasMCP() && m.warming != sup && m.warmed != sup
 		if warm {
 			m.warming = sup
 		}
@@ -222,7 +234,7 @@ func (m *Manager) SetSetup(setup *Setup) {
 func (m *Manager) Status() Status {
 	m.mu.Lock()
 	sup, switching, since, binary := m.sup, m.switching, m.switchSince, m.binary
-	warming := len(m.setup.Options.MCP) > 0 && m.warmed != m.sup
+	warming := m.hasMCP() && m.warmed != m.sup
 	m.mu.Unlock()
 	st := sup.Status()
 	if warming && st.State == StateReady {

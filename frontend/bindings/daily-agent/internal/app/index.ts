@@ -3,6 +3,7 @@
 
 import * as AgentService from "./agentservice.js";
 import * as ChatsService from "./chatsservice.js";
+import * as DayPlanService from "./dayplanservice.js";
 import * as LinksService from "./linksservice.js";
 import * as MCPService from "./mcpservice.js";
 import * as MeetingsService from "./meetingsservice.js";
@@ -15,6 +16,7 @@ import * as TodayService from "./todayservice.js";
 export {
     AgentService,
     ChatsService,
+    DayPlanService,
     LinksService,
     MCPService,
     MeetingsService,
@@ -35,6 +37,8 @@ export type {
     ChatMessageView,
     ChatView,
     ConnectionCheck,
+    DataChanged,
+    ExternalAgentView,
     LinkInput,
     LinkView,
     MCPServerInput,
@@ -50,6 +54,8 @@ export type {
     ModelSettingsInput,
     ModelSettingsView,
     ModelsInput,
+    PlanItemView,
+    PlanView,
     ProviderKeyInput,
     ProviderView,
     RepeatOption,

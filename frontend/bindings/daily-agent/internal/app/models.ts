@@ -183,6 +183,32 @@ export interface ConnectionCheck {
 }
 
 /**
+ * DataChanged — данные события изменения базы.
+ */
+export interface DataChanged {
+}
+
+/**
+ * ExternalAgentView — как подключить свой сервер приложения к внешнему агенту.
+ */
+export interface ExternalAgentView {
+    /**
+     * Command — команда запуска сервера.
+     */
+    "command": string[] | null;
+
+    /**
+     * OpenCode — готовый фрагмент настроек OpenCode второй версии.
+     */
+    "openCode": string;
+
+    /**
+     * Claude — команда для Claude Code.
+     */
+    "claude": string;
+}
+
+/**
  * LinkInput — ссылка из карточки. Пустой ID — новая ссылка.
  */
 export interface LinkInput {
@@ -420,6 +446,37 @@ export interface ModelsInput {
 }
 
 /**
+ * PlanItemView — задача в плане на день.
+ */
+export interface PlanItemView {
+    "task": TaskView;
+    "estimateMin": number;
+    "reason": string;
+}
+
+/**
+ * PlanView — план на день.
+ */
+export interface PlanView {
+    "day": string;
+    "summary": string;
+
+    /**
+     * Source: agent — составил агент, manual — автор.
+     */
+    "source": string;
+    "updatedAt": string;
+    "items": PlanItemView[] | null;
+
+    /**
+     * TotalMin — сумма оценок, FreeMin — рабочий день минус встречи.
+     */
+    "totalMin": number;
+    "meetingMin": number;
+    "freeMin": number;
+}
+
+/**
  * ProviderKeyInput — ключ провайдера: из каталога или из настроек OpenCode.
  */
 export interface ProviderKeyInput {
@@ -562,6 +619,11 @@ export interface TaskView {
 export interface TodayView {
     "day": string;
     "summary": SummaryView | null;
+
+    /**
+     * Plan — план на день; nil — плана нет.
+     */
+    "plan": PlanView | null;
     "meetings": MeetingView[] | null;
     "inbox": TaskView[] | null;
     "backlog": TaskView[] | null;

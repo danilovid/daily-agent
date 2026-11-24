@@ -2,9 +2,11 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"sort"
 	"strings"
 
@@ -53,6 +55,9 @@ func mcpEntries(ctx context.Context, st *store.Store, secrets Secrets, user agen
 	var out []mcpEntry
 	for i := range user.MCP {
 		s := user.MCP[i]
+		if s.Name == InternalMCPServerName {
+			continue // имя занято своим сервером приложения
+		}
 		e := mcpEntry{Name: s.Name, Title: s.Title, Source: store.MCPSourceOpenCode, Type: s.Type, URL: s.URL, Command: s.Command,
 			Enabled: !s.Disabled, Tokens: s.Tokens, Definition: s.Definition, Auth: store.MCPAuthNone, User: &user.MCP[i]}
 		if s.OAuth {
@@ -68,7 +73,7 @@ func mcpEntries(ctx context.Context, st *store.Store, secrets Secrets, user agen
 	}
 	for i := range rows {
 		row := &rows[i]
-		if row.Source != store.MCPSourceApp {
+		if row.Source != store.MCPSourceApp || row.Name == InternalMCPServerName {
 			continue
 		}
 		if _, dup := user.MCPServer(row.Name); dup {
@@ -228,11 +233,54 @@ type MCPService struct {
 	settings *SettingsService
 	agent    MCPAgent
 	openURL  func(string) error
+	// internal — команда своего MCP-сервера приложения.
+	internal []string
 }
 
-// NewMCPService создаёт сервис. openURL открывает адрес входа в браузере.
-func NewMCPService(settings *SettingsService, ag MCPAgent, openURL func(string) error) *MCPService {
-	return &MCPService{settings: settings, agent: ag, openURL: openURL}
+// NewMCPService создаёт сервис. openURL открывает адрес входа в браузере,
+// internal — команда своего MCP-сервера для внешних агентов.
+func NewMCPService(settings *SettingsService, ag MCPAgent, openURL func(string) error, internal []string) *MCPService {
+	return &MCPService{settings: settings, agent: ag, openURL: openURL, internal: internal}
+}
+
+// ExternalAgentView — как подключить свой сервер приложения к внешнему агенту.
+type ExternalAgentView struct {
+	// Command — команда запуска сервера.
+	Command []string `json:"command"`
+	// OpenCode — готовый фрагмент настроек OpenCode второй версии.
+	OpenCode string `json:"openCode"`
+	// Claude — команда для Claude Code.
+	Claude string `json:"claude"`
+}
+
+// ExternalAgent описывает, как подключить свой MCP-сервер приложения к
+// внешнему агенту: тот получит встречи, бэклог и запись плана на день.
+func (s *MCPService) ExternalAgent() ExternalAgentView {
+	v := ExternalAgentView{Command: s.internal}
+	if len(s.internal) == 0 {
+		return v
+	}
+	server := map[string]any{"type": "local", "command": s.internal}
+	// Приложение запущено с другой базой — внешнему агенту нужна та же.
+	if db := strings.TrimSpace(os.Getenv(store.EnvPath)); db != "" {
+		server["environment"] = map[string]any{store.EnvPath: db}
+	}
+	cfg := map[string]any{"mcp": map[string]any{"servers": map[string]any{"daily-agent": server}}}
+	raw, _ := json.MarshalIndent(cfg, "", "  ")
+	v.OpenCode = string(raw)
+	quoted := make([]string, len(s.internal))
+	for i, part := range s.internal {
+		quoted[i] = shellQuote(part)
+	}
+	v.Claude = "claude mcp add daily-agent -- " + strings.Join(quoted, " ")
+	return v
+}
+
+func shellQuote(v string) string {
+	if v != "" && !strings.ContainsAny(v, " \t'\"$`\\") {
+		return v
+	}
+	return "'" + strings.ReplaceAll(v, "'", `'\''`) + "'"
 }
 
 func (s *MCPService) entries(ctx context.Context) ([]mcpEntry, error) {
@@ -311,6 +359,9 @@ func (s *MCPService) Add(ctx context.Context, in MCPServerInput) ([]MCPServerVie
 	name := agent.MCPName(title)
 	if name == "" {
 		return nil, errors.New("название должно содержать буквы или цифры")
+	}
+	if name == InternalMCPServerName {
+		return nil, fmt.Errorf("имя %s занято сервером приложения, выберите другое название", name)
 	}
 	entries, err := s.entries(ctx)
 	if err != nil {

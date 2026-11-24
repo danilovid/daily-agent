@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -31,13 +32,19 @@ type liveChat struct {
 
 func startLiveChat(t *testing.T, st *store.Store, root string, stub *stubmodel.Server) *liveChat {
 	t.Helper()
+	return startLiveChatWith(t, st, root, stub, nil)
+}
+
+// startLiveChatWith — живой чат со своим MCP-сервером приложения internal.
+func startLiveChatWith(t *testing.T, st *store.Store, root string, stub *stubmodel.Server, internal *agent.InternalMCP) *liveChat {
+	t.Helper()
 	bin, err := agent.FindBinary(context.Background(), agent.Candidates(), agent.PinnedVersion, nil)
 	if err != nil {
 		t.Skipf("нет OpenCode %s: %v", agent.PinnedVersion, err)
 	}
 	model := agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
 	lc := &liveChat{t: t, notify: make(chan ChatEvent, 1000)}
-	lc.backend = agent.NewManager(agent.Config{Profile: agent.Profile{Root: root}, Binary: bin, Logf: t.Logf}, model.Setup())
+	lc.backend = agent.NewManager(agent.Config{Profile: agent.Profile{Root: root}, Binary: bin, Logf: t.Logf, Internal: internal}, model.Setup())
 	lc.backend.Start(context.Background())
 	lc.waitReady()
 	lc.svc = NewChatsService(st, SystemClock(), lc.backend, NewTodayService(st, SystemClock()), func(e ChatEvent) {
@@ -464,7 +471,7 @@ func TestLiveMCPInChats(t *testing.T) {
 	lc := startLiveChat(t, st, root, model)
 	secrets := &memSecrets{}
 	settings := NewSettingsService(st, secrets, lc.backend, SystemClock(), func() (agent.UserConfig, error) { return user, nil }, false)
-	mcp := NewMCPService(settings, lc.backend, func(string) error { return nil })
+	mcp := NewMCPService(settings, lc.backend, func(string) error { return nil }, nil)
 	if _, err := settings.SaveModel(ctx, ModelSettingsInput{URL: model.URL, ModelID: stubmodel.ModelID}); err != nil {
 		t.Fatal(err)
 	}
@@ -527,5 +534,98 @@ func TestLiveMCPInChats(t *testing.T) {
 	}
 	if cfg, _ := os.ReadFile(filepath.Join(root, "config", "opencode", "opencode.json")); strings.Contains(string(cfg), "test-token-live") || strings.Contains(string(cfg), "test-secret-in-config") {
 		t.Fatal("токен в настройках OpenCode")
+	}
+}
+
+func TestLivePlanDay(t *testing.T) {
+	model, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer model.Close()
+	tmp, _ := os.MkdirTemp("", "da-plan-")
+	defer os.RemoveAll(tmp)
+	root, _ := filepath.EvalSymlinks(tmp)
+	ctx := context.Background()
+	dbPath := filepath.Join(root, store.FileName)
+	st, err := store.Open(ctx, dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	clock := SystemClock()
+	today := clock.today()
+	urgent, _ := st.CreateTask(ctx, store.Task{Title: "Ответить про сроки", Status: store.StatusBacklog, DueDate: today})
+	review, _ := st.CreateTask(ctx, store.Task{Title: "Заметки к ревью", Status: store.StatusBacklog})
+	st.CreateTask(ctx, store.Task{Title: "Новая просьба", Status: store.StatusInbox})
+
+	// Свой сервер — тестовый бинарник в роли «daily-agent mcp» на той же базе.
+	lc := startLiveChatWith(t, st, filepath.Join(root, "agent"), model, &agent.InternalMCP{
+		Name:       InternalMCPServerName,
+		Definition: map[string]any{"type": "local", "command": []string{os.Args[0]}, "environment": map[string]any{internalMCPEnv: dbPath}},
+		Tools:      InternalMCPTools,
+	})
+	lc.waitReady()
+	var changes atomic.Int32
+	old := WatchInterval
+	WatchInterval = 50 * time.Millisecond
+	defer func() { WatchInterval = old }()
+	watchCtx, stopWatch := context.WithCancel(ctx)
+	defer stopWatch()
+	go WatchData(watchCtx, st, func() { changes.Add(1) })
+
+	// «Составить план»: рабочий чат с агендой, у модели — инструменты плана.
+	before := len(model.Requests())
+	plan, err := lc.svc.PlanDay(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("план: %+v", d)
+	}
+	var offered []string
+	for _, r := range model.Requests()[before:] {
+		if len(r.Tools) > len(offered) {
+			offered = r.Tools
+		}
+	}
+	if strings.Join(offered, ",") != "daily_get_day,daily_list_tasks,daily_set_day_plan" {
+		t.Fatalf("инструменты плана: %v", offered)
+	}
+
+	// Агент (заглушка) читает день и записывает план своим сервером.
+	args := `{"summary":"Начни со сроков.","items":[{"task_id":"` + urgent.ID + `","estimate_min":30,"reason":"срок сегодня"},{"task_id":"` + review.ID + `","estimate_min":60,"reason":"ревью"}]}`
+	if err := lc.svc.Send(ctx, plan.ID, "[stub:call name=daily_get_day args={}] [stub:call name=daily_set_day_plan args="+args+"]"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("запись плана: %+v", d)
+	}
+	saved, err := st.DayPlan(ctx, today)
+	if err != nil || saved == nil || saved.Source != store.PlanSourceAgent || len(saved.Items) != 2 || saved.Summary != "Начни со сроков." {
+		t.Fatalf("план в базе: %+v %v", saved, err)
+	}
+	view, _ := NewTodayService(st, clock).Today(ctx, "")
+	if view.Plan == nil || view.Plan.TotalMin != 90 || view.Plan.Items[0].Reason != "срок сегодня" {
+		t.Fatalf("план на экране «Сегодня»: %+v", view.Plan)
+	}
+	// Окно узнаёт о записи другого процесса.
+	deadline := time.Now().Add(2 * time.Second)
+	for changes.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if changes.Load() == 0 {
+		t.Fatal("наблюдение за базой не заметило план")
+	}
+
+	// Личный чат инструментов приложения не получает.
+	personal, _ := lc.svc.Create(ctx, false, true)
+	before = len(model.Requests())
+	lc.svc.Send(ctx, personal.ID, "[stub:call name=daily_list_tasks args={}]")
+	lc.waitFor("done")
+	for _, r := range model.Requests()[before:] {
+		if len(r.Tools) > 0 {
+			t.Fatalf("личному чату предложены инструменты: %v", r.Tools)
+		}
 	}
 }

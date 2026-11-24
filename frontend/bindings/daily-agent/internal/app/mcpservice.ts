@@ -23,6 +23,14 @@ export function Add($in: $models.MCPServerInput): $CancellablePromise<$models.MC
 }
 
 /**
+ * ExternalAgent описывает, как подключить свой MCP-сервер приложения к
+ * внешнему агенту: тот получит встречи, бэклог и запись плана на день.
+ */
+export function ExternalAgent(): $CancellablePromise<$models.ExternalAgentView> {
+    return $Call.ByID(91499985);
+}
+
+/**
  * ImportTokens переносит недостающие токены сервера из настроек OpenCode
  * пользователя в Связку ключей. Только по просьбе пользователя: в файлы
  * приложения и в настройки OpenCode агента токены не попадают.

@@ -414,6 +414,24 @@ func (s *ChatsService) Create(ctx context.Context, withAgenda, personal bool) (C
 	return s.Open(ctx, chat.ID)
 }
 
+// PlanDayPrompt — просьба составить план на день. Как его составлять, описано
+// в инструкциях агента.
+const PlanDayPrompt = "Составь план на сегодня: посмотри встречи и бэклог, выбери задачи, которые помещаются в свободное время, и запиши план."
+
+// PlanDay открывает рабочий чат с агендой и просит агента составить план на
+// день. Агент читает встречи и бэклог и записывает план инструментами
+// своего MCP-сервера приложения. Ответ приходит событиями chat:event.
+func (s *ChatsService) PlanDay(ctx context.Context) (ChatView, error) {
+	view, err := s.Create(ctx, true, false)
+	if err != nil {
+		return ChatView{}, err
+	}
+	if err := s.Send(ctx, view.ID, PlanDayPrompt); err != nil {
+		return ChatView{}, err
+	}
+	return s.Open(ctx, view.ID)
+}
+
 // Send отправляет вопрос агенту. Ответ приходит событиями chat:event.
 func (s *ChatsService) Send(ctx context.Context, id, text string) error {
 	text = strings.TrimSpace(text)

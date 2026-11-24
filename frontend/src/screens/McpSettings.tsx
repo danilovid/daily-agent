@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Events } from '@wailsio/runtime';
 import { MCPService } from '../../bindings/daily-agent/internal/app';
-import type { MCPServerView, MCPTokenView } from '../../bindings/daily-agent/internal/app';
+import type { ExternalAgentView, MCPServerView, MCPTokenView } from '../../bindings/daily-agent/internal/app';
 import { Field } from '../components/Fields';
 import { CloseIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Modal } from '../components/Modal';
@@ -102,6 +102,13 @@ export function McpSettings() {
         <div className="settings-group">
           <div className="settings-row">
             <div className="settings-row__label">
+              <span className="settings-row__title">Задачи в приложении</span>
+              <span className="settings-row__hint">Агент читает встречи и бэклог и записывает план на день. Задачи не меняет и не удаляет</span>
+            </div>
+            <span className="settings-row__value settings-row__value--plain">План на день</span>
+          </div>
+          <div className="settings-row">
+            <div className="settings-row__label">
               <span className="settings-row__title">Рабочие системы</span>
               <span className="settings-row__hint">Агент читает данные и ничего не отправляет. Инструменты записи закрыты</span>
             </div>
@@ -116,6 +123,8 @@ export function McpSettings() {
           </div>
         </div>
       </section>
+
+      <ExternalAgent />
 
       {dialog?.kind === 'add' && <AddDialog onClose={() => setDialog(null)} onSaved={applied} />}
       {dialog?.kind === 'tools' && <ToolsDialog server={dialog.server} onClose={() => setDialog(null)} onSaved={applied} />}
@@ -460,5 +469,52 @@ function TokenDialog({ server: s, onClose, onSaved }: DialogProps & { server: MC
         </div>
       </form>
     </Modal>
+  );
+}
+
+/** Как подключить свой MCP-сервер приложения к внешнему агенту. */
+function ExternalAgent() {
+  const [view, setView] = useState<ExternalAgentView | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => {
+    MCPService.ExternalAgent().then(setView).catch(() => setView(null));
+  }, []);
+  if (!view || (view.command ?? []).length === 0) return null;
+  const copy = (key: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(key);
+      window.setTimeout(() => setCopied(null), 2000);
+    }).catch(() => setCopied(null));
+  };
+  return (
+    <section className="settings-section" aria-labelledby="settings-external">
+      <h3 className="settings-section__title" id="settings-external">Подключить к своему агенту</h3>
+      <div className="settings-group external-agent">
+        <p className="settings-row__hint external-agent__text">
+          Встречи, бэклог и план на день доступны и вашему агенту — например, OpenCode в терминале. Добавьте сервер в его настройки. Он работает и без запущенного приложения.
+        </p>
+        <div className="external-agent__block">
+          <div className="external-agent__head">
+            <span className="settings-row__title">OpenCode: ~/.config/opencode/opencode.jsonc</span>
+            <button type="button" className="settings-action" onClick={() => copy('opencode', view.openCode)}>
+              {copied === 'opencode' ? 'Скопировано' : 'Скопировать'}
+            </button>
+          </div>
+          <pre className="external-agent__code">{view.openCode}</pre>
+        </div>
+        <div className="external-agent__block">
+          <div className="external-agent__head">
+            <span className="settings-row__title">Claude Code</span>
+            <button type="button" className="settings-action" onClick={() => copy('claude', view.claude)}>
+              {copied === 'claude' ? 'Скопировано' : 'Скопировать'}
+            </button>
+          </div>
+          <pre className="external-agent__code">{view.claude}</pre>
+        </div>
+        <p className="settings-row__hint external-agent__text external-agent__warning">
+          Если ваш агент работает с облачной моделью, встречи и задачи уйдут ей. Для рабочих данных выбирайте селфхост-модель.
+        </p>
+      </div>
+    </section>
   );
 }

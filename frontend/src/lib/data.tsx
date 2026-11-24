@@ -1,3 +1,4 @@
+import { Events } from '@wailsio/runtime';
 // Общее состояние данных: номер версии, по которому экраны перечитывают
 // данные после изменений, и показ ошибок.
 
@@ -30,6 +31,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const timer = useRef<number | undefined>(undefined);
 
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  // Базу изменил другой процесс: свой MCP-сервер или внешний агент.
+  useEffect(() => Events.On('data:changed', () => refresh()), [refresh]);
   const showError = useCallback((e: unknown) => {
     setError(errorText(e));
     window.clearTimeout(timer.current);

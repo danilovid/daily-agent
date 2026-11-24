@@ -57,6 +57,10 @@ function Shell() {
       setChatOpen(false);
       select('settings');
     },
+    openChat: (id: string) => {
+      setPanelChat(id);
+      setChatOpen(true);
+    },
   }), [select]);
   const closeCard = useCallback(() => setCard(null), []);
 

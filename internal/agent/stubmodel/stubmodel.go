@@ -111,7 +111,25 @@ func (s *Server) Requests() []Request {
 	return append([]Request(nil), s.requests...)
 }
 
-var callPattern = regexp.MustCompile(`\[stub:call name=([A-Za-z0-9_.-]+) args=(\{.*?\})\]`)
+var callStart = regexp.MustCompile(`\[stub:call name=([A-Za-z0-9_.-]+) args=`)
+
+// parseCalls находит пометки [stub:call name=… args={…}]. Аргументы — объект
+// JSON любой вложенности: он читается декодером целиком.
+func parseCalls(text string) []Call {
+	var calls []Call
+	for _, loc := range callStart.FindAllStringSubmatchIndex(text, -1) {
+		rest := text[loc[1]:]
+		dec := json.NewDecoder(strings.NewReader(rest))
+		var raw json.RawMessage
+		if err := dec.Decode(&raw); err != nil || len(raw) == 0 || raw[0] != '{' {
+			continue
+		}
+		if end := int(dec.InputOffset()); end < len(rest) && rest[end] == ']' {
+			calls = append(calls, Call{Name: text[loc[2]:loc[3]], Args: string(raw)})
+		}
+	}
+	return calls
+}
 
 type chatRequest struct {
 	Model    string `json:"model"`
@@ -170,9 +188,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 	if rec.LastRole == "tool" {
 		reply = AfterTool
 	} else if rec.LastRole == "user" {
-		for _, m := range callPattern.FindAllStringSubmatch(rec.LastText, -1) {
-			rec.ToolCalls = append(rec.ToolCalls, Call{Name: m[1], Args: m[2]})
-		}
+		rec.ToolCalls = append(rec.ToolCalls, parseCalls(rec.LastText)...)
 		if strings.Contains(rec.LastText, SlowMarker) {
 			slow = true
 			reply = SlowReply

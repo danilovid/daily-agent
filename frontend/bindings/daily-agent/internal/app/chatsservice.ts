@@ -50,6 +50,15 @@ export function Open(id: string): $CancellablePromise<$models.ChatView> {
 }
 
 /**
+ * PlanDay открывает рабочий чат с агендой и просит агента составить план на
+ * день. Агент читает встречи и бэклог и записывает план инструментами
+ * своего MCP-сервера приложения. Ответ приходит событиями chat:event.
+ */
+export function PlanDay(): $CancellablePromise<$models.ChatView> {
+    return $Call.ByID(1115825227);
+}
+
+/**
  * Rename меняет заголовок чата.
  */
 export function Rename(id: string, title: string): $CancellablePromise<void> {

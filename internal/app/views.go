@@ -7,8 +7,10 @@ package app
 
 // TodayView — данные экрана «Сегодня».
 type TodayView struct {
-	Day      string        `json:"day"`
-	Summary  *SummaryView  `json:"summary"`
+	Day     string       `json:"day"`
+	Summary *SummaryView `json:"summary"`
+	// Plan — план на день; nil — плана нет.
+	Plan     *PlanView     `json:"plan"`
 	Meetings []MeetingView `json:"meetings"`
 	Inbox    []TaskView    `json:"inbox"`
 	Backlog  []TaskView    `json:"backlog"`

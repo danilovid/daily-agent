@@ -11,7 +11,7 @@ import (
 
 // Таблицы из раздела 5 docs/architecture.md.
 var wantTables = []string{
-	"agent_runs", "chats", "mcp_servers", "meeting_links", "meetings", "settings", "summaries",
+	"agent_runs", "chats", "day_plan_items", "day_plans", "mcp_servers", "meeting_links", "meetings", "settings", "summaries",
 	"sync_state", "tags", "task_links", "task_tags", "tasks",
 }
 

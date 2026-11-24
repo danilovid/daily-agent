@@ -87,7 +87,7 @@ func TestMCPService(t *testing.T) {
 	}
 	h.svc.agent = ag
 	var opened []string
-	svc := NewMCPService(h.svc, ag, func(u string) error { opened = append(opened, u); return nil })
+	svc := NewMCPService(h.svc, ag, func(u string) error { opened = append(opened, u); return nil }, []string{"/Applications/Daily Agent.app/Contents/MacOS/daily-agent", "mcp"})
 	ctx := context.Background()
 
 	list, err := svc.List(ctx)
@@ -201,6 +201,17 @@ func TestMCPService(t *testing.T) {
 	}
 	if cal := s.Options.MCP["kalendar"]; strings.Join(cal["command"].([]string), " ") != "cal-mcp --stdio" {
 		t.Fatalf("локальный сервер: %+v", cal)
+	}
+
+	// Имя daily занято своим сервером приложения.
+	if _, err := svc.Add(ctx, MCPServerInput{Title: "Daily", Type: "local", Command: "x"}); err == nil {
+		t.Fatal("имя daily занято")
+	}
+	// Как подключить свой сервер к внешнему агенту.
+	ext := svc.ExternalAgent()
+	if !strings.Contains(ext.OpenCode, `"daily-agent"`) || !strings.Contains(ext.OpenCode, `"mcp"`) ||
+		ext.Claude != "claude mcp add daily-agent -- '/Applications/Daily Agent.app/Contents/MacOS/daily-agent' mcp" {
+		t.Fatalf("внешний агент: %+v", ext)
 	}
 
 	// Вход через браузер.
