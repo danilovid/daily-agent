@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ChatsService, DayPlanService, TasksService, TodayService } from '../../bindings/daily-agent/internal/app';
-import type { MeetingView, PlanView, TaskView } from '../../bindings/daily-agent/internal/app';
+import type { MeetingView, PlanView } from '../../bindings/daily-agent/internal/app';
 import { CloseIcon, PlusIcon } from '../components/Icons';
 import { MeetingRow } from '../components/MeetingRow';
-import { InboxRow, TaskRow } from '../components/TaskRows';
 import { agentUnavailable, useAgentStatus } from '../lib/agent';
 import { useCards } from '../lib/cards';
 import { useAction, useData, useLoad } from '../lib/data';
@@ -52,16 +51,8 @@ export function TodayScreen() {
         </section>
       )}
 
-      {data && <DayPlan plan={data.plan} />}
       {data && <Agenda meetings={data.meetings ?? []} now={now} />}
-      {data && <Inbox tasks={data.inbox ?? []} today={data.day} />}
-      {data && (
-        <Backlog
-          tasks={data.backlog ?? []}
-          today={data.day}
-          planned={new Set((data.plan?.items ?? []).map((it) => it.task.id))}
-        />
-      )}
+      {data && <DayPlan plan={data.plan} />}
     </>
   );
 }
@@ -79,45 +70,6 @@ function Agenda({ meetings, now }: { meetings: MeetingView[]; now: Date }) {
           variant="agenda"
           current={m === current}
           countdown={m === current ? countdownLabel(m.startsAt, m.durationMin, now) : null}
-        />
-      ))}
-    </section>
-  );
-}
-
-function Inbox({ tasks, today }: { tasks: TaskView[]; today: string }) {
-  return (
-    <section className="section">
-      <div className="section__header">
-        <h3 className="section__title">Входящие</h3>
-        {tasks.length > 0 && <span className="soft-count">{tasks.length}</span>}
-        <span className="section__hint">ждут разбора</span>
-      </div>
-      {tasks.length === 0 && <p className="section__empty section__empty--ruled">Во «Входящих» пусто</p>}
-      {tasks.map((t) => <InboxRow key={t.id} task={t} today={today} />)}
-    </section>
-  );
-}
-
-function Backlog({ tasks, today, planned }: { tasks: TaskView[]; today: string; planned: Set<string> }) {
-  const { openTask } = useCards();
-  const act = useAction();
-  return (
-    <section className="section">
-      <div className="section__header section__header--lg">
-        <h3 className="section__title">Бэклог</h3>
-        <span className="section__count">{tasks.length}</span>
-        <button className="icon-button icon-button--edge section__add" aria-label="Добавить задачу" onClick={() => openTask()}>
-          <PlusIcon size="var(--icon-nav)" />
-        </button>
-      </div>
-      {tasks.length === 0 && <p className="section__empty section__empty--ruled">В бэклоге пусто</p>}
-      {tasks.map((t) => (
-        <TaskRow
-          key={t.id}
-          task={t}
-          today={today}
-          onPlan={planned.has(t.id) ? undefined : () => act(() => DayPlanService.Add(t.id))}
         />
       ))}
     </section>
@@ -172,7 +124,7 @@ function DayPlan({ plan }: { plan: PlanView | null }) {
       </div>
       {items.length === 0 && (
         <p className="section__empty section__empty--ruled">
-          {plan ? 'В плане нет задач.' : 'Плана пока нет. Агент выберет из бэклога задачи, которые помещаются в свободное время.'}
+          {plan ? 'В плане нет задач.' : 'Плана пока нет. Агент выберет из бэклога задачи, которые помещаются в свободное время. Задачу можно добавить и самому — кнопкой «В план» в «Бэклоге».'}
         </p>
       )}
       {items.map((it) => (

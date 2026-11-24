@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { TasksService } from '../../bindings/daily-agent/internal/app';
+import { DayPlanService, TasksService, TodayService } from '../../bindings/daily-agent/internal/app';
 import type { TagView } from '../../bindings/daily-agent/internal/app';
 import { CloseIcon, PlusIcon } from '../components/Icons';
 import { Segmented } from '../components/Segmented';
 import { TagChip } from '../components/TagChip';
 import { InboxRow, TaskRow } from '../components/TaskRows';
 import { useCards } from '../lib/cards';
-import { useLoad } from '../lib/data';
+import { useAction, useLoad } from '../lib/data';
 import { toDay } from '../lib/format';
 
 type Props = {
@@ -25,6 +25,11 @@ export function TasksScreen({ mode, tag, onClearTag }: Props) {
   const { data, error } = useLoad(() => TasksService.List(status, tagID), [status, tagID]);
   const tasks = data ?? [];
   const today = toDay(new Date());
+  const act = useAction();
+  // Открытые задачи бэклога можно добавить в план на сегодня, если их там ещё нет.
+  const withPlan = mode === 'backlog' && view === 'backlog';
+  const { data: todayView } = useLoad(() => (withPlan ? TodayService.Today('') : Promise.resolve(null)), [withPlan]);
+  const planned = new Set((todayView?.plan?.items ?? []).map((it) => it.task.id));
 
   const empty =
     mode === 'inbox' ? 'Во «Входящих» пусто: новые задачи из трекера и репозитория появятся здесь.'
@@ -69,7 +74,14 @@ export function TasksScreen({ mode, tag, onClearTag }: Props) {
         {data && tasks.length === 0 && <p className="section__empty section__empty--ruled">{empty}</p>}
         {tasks.map((t) => (mode === 'inbox'
           ? <InboxRow key={t.id} task={t} today={today} />
-          : <TaskRow key={t.id} task={t} today={today} />))}
+          : (
+            <TaskRow
+              key={t.id}
+              task={t}
+              today={today}
+              onPlan={withPlan && todayView && !planned.has(t.id) ? () => act(() => DayPlanService.Add(t.id)) : undefined}
+            />
+          )))}
       </section>
     </>
   );
