@@ -27,6 +27,7 @@ const EnvStubModel = "DAILY_AGENT_STUB_MODEL"
 
 func init() {
 	application.RegisterEvent[app.AgentStatusView](app.AgentStatusEvent)
+	application.RegisterEvent[app.ChatEvent](app.ChatEventName)
 }
 
 func main() {
@@ -47,14 +48,25 @@ func main() {
 	openURL := func(u string) error { return application.Get().Browser.OpenURL(u) }
 
 	// OpenCode агента живёт рядом с базой приложения, в своих папках.
-	supervisor, stopModel := newSupervisor(ctx, filepath.Join(filepath.Dir(dbPath), "agent"))
+	backend, stopModel := newAgent(ctx, filepath.Join(filepath.Dir(dbPath), "agent"))
+	supervisor := backend.Supervisor
 	defer stopModel()
+
+	// Окно ещё не создано, поэтому события чата уходят через переменную.
+	var emitChat func(app.ChatEvent)
+	today := app.NewTodayService(db, clock)
+	chats := app.NewChatsService(db, clock, backend, today, func(e app.ChatEvent) {
+		if emitChat != nil {
+			emitChat(e)
+		}
+	})
+	eventsCtx, stopEvents := context.WithCancel(ctx)
 
 	wails := application.New(application.Options{
 		Name:        "Daily Agent",
 		Description: "Личный рабочий помощник",
 		Services: []application.Service{
-			application.NewService(app.NewTodayService(db, clock)),
+			application.NewService(today),
 			application.NewService(app.NewSidebarService(db, clock)),
 			application.NewService(app.NewMeetingsService(db, clock)),
 			application.NewService(app.NewTasksService(db, clock)),
@@ -62,6 +74,7 @@ func main() {
 			application.NewService(app.NewSearchService(db, clock)),
 			application.NewService(app.NewLinksService(db, openURL)),
 			application.NewService(app.NewAgentService(supervisor.Status, clock)),
+			application.NewService(chats),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -72,6 +85,7 @@ func main() {
 		// На macOS Run() не возвращается после выхода, отложенные вызовы не
 		// выполняются. OpenCode останавливается здесь: выход ждёт этой функции.
 		OnShutdown: func() {
+			stopEvents()
 			supervisor.Stop()
 			stopModel()
 		},
@@ -80,9 +94,13 @@ func main() {
 	supervisor.OnChange(func(st agent.Status) {
 		wails.Event.Emit(app.AgentStatusEvent, app.AgentStatusFrom(st, clock))
 	})
+	emitChat = func(e app.ChatEvent) { wails.Event.Emit(app.ChatEventName, e) }
 	// Приложение работает и без агента: свои задачи и встречи не ждут OpenCode.
 	supervisor.Start(ctx)
 	defer supervisor.Stop()
+	// Ответы агента приходят потоком событий OpenCode.
+	go agent.RunEvents(eventsCtx, backend.Client, app.ChatEventHandler(chats))
+	defer stopEvents()
 
 	// Окно как в макетах: 1100 × 860, тёмное, без видимого заголовка.
 	// Кнопки окна стоят по центру верхней полосы высотой 52 pt над боковой панелью.
@@ -109,11 +127,13 @@ func main() {
 	}
 }
 
-// newSupervisor готовит надзор за OpenCode. Модель: заглушка при
+// newAgent готовит надзор за OpenCode. Модель: заглушка при
 // DAILY_AGENT_STUB_MODEL=1, иначе адрес и модель из окружения и ключ из
 // Связки ключей. Без модели OpenCode запускается, но агент не ответит.
-func newSupervisor(ctx context.Context, root string) (*agent.Supervisor, func()) {
-	cfg := agent.Config{Profile: agent.Profile{Root: root}, Logf: log.Printf}
+func newAgent(ctx context.Context, root string) (*agent.Backend, func()) {
+	profile := agent.Profile{Root: root}
+	cfg := agent.Config{Profile: profile, Logf: log.Printf}
+	var ref *agent.ModelRef
 	stop := func() {}
 	if os.Getenv(EnvStubModel) == "1" {
 		stub, err := stubmodel.Start()
@@ -122,14 +142,16 @@ func newSupervisor(ctx context.Context, root string) (*agent.Supervisor, func())
 		} else {
 			model := agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
 			cfg.Options = agentprofile.Options{Provider: model.Provider()}
+			ref = model.Ref()
 			stop = func() { stub.Close() }
 			log.Printf("агент работает с заглушкой модели")
 		}
 	} else if model, err := agent.ModelFromEnv(ctx); err == nil {
 		cfg.Options = agentprofile.Options{Provider: model.Provider()}
 		cfg.ExtraEnv = model.Env()
+		ref = model.Ref()
 	} else if !errors.Is(err, agent.ErrNoModel) {
 		log.Printf("модель агента: %v", err)
 	}
-	return agent.NewSupervisor(cfg), stop
+	return &agent.Backend{Supervisor: agent.NewSupervisor(cfg), Profile: profile, ModelRef: ref}, stop
 }

@@ -21,6 +21,80 @@ export interface AgentStatusView {
 }
 
 /**
+ * ChatEvent — ход ответа агента для окна.
+ */
+export interface ChatEvent {
+    "chatId": string;
+
+    /**
+     * Type: started — агент начал, delta — кусок текста, done — закончил.
+     */
+    "type": string;
+    "messageId": string;
+    "delta": string;
+
+    /**
+     * Outcome у done: succeeded, failed, interrupted.
+     */
+    "outcome": string;
+    "error": string;
+}
+
+/**
+ * ChatListItem — чат в списке.
+ */
+export interface ChatListItem {
+    "id": string;
+    "title": string;
+    "kind": string;
+    "updatedAt": string;
+
+    /**
+     * Preview — начало последнего ответа агента. Читается из OpenCode при
+     * показе и в базе приложения не хранится.
+     */
+    "preview": string;
+    "running": boolean;
+}
+
+/**
+ * ChatMessageView — строка переписки.
+ */
+export interface ChatMessageView {
+    "id": string;
+
+    /**
+     * Role: user — вопрос, agent — ответ агента, tool — вызов инструмента,
+     * context — контекст от приложения, error — ошибка или остановка.
+     */
+    "role": string;
+    "text": string;
+    "createdAt": string;
+}
+
+/**
+ * ChatView — чат с перепиской.
+ */
+export interface ChatView {
+    "id": string;
+    "title": string;
+    "kind": string;
+    "createdAt": string;
+
+    /**
+     * Context — подпись контекста, например «агенда на 24 ноября».
+     */
+    "context": string;
+    "running": boolean;
+    "messages": ChatMessageView[] | null;
+
+    /**
+     * Unavailable — почему агент сейчас недоступен. Пусто — доступен.
+     */
+    "unavailable": string;
+}
+
+/**
  * LinkInput — ссылка из карточки. Пустой ID — новая ссылка.
  */
 export interface LinkInput {

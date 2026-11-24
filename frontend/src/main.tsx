@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import './styles/app.css';
 import './styles/screens.css';
 import './styles/cards.css';
+import './styles/chat.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

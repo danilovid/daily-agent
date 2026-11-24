@@ -30,6 +30,16 @@ const Reply = "Тестовый ответ заглушки."
 // AfterTool — ответ заглушки после результата инструмента.
 const AfterTool = "Инструмент отработал или был запрещён."
 
+// SlowMarker в сообщении включает медленный длинный ответ: по слову раз в
+// SlowDelay. Так проверяется остановка ответа.
+const SlowMarker = "[stub:slow]"
+
+// SlowDelay — пауза между словами медленного ответа.
+const SlowDelay = 250 * time.Millisecond
+
+// SlowReply — длинный ответ медленного режима.
+var SlowReply = strings.TrimSpace(strings.Repeat("Это длинный медленный ответ заглушки. ", 8))
+
 // Request — то, что заглушка узнала о запросе.
 type Request struct {
 	Stream    bool
@@ -133,11 +143,16 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reply := Reply
+	slow := false
 	if rec.LastRole == "tool" {
 		reply = AfterTool
 	} else if rec.LastRole == "user" {
 		for _, m := range callPattern.FindAllStringSubmatch(rec.LastText, -1) {
 			rec.ToolCalls = append(rec.ToolCalls, Call{Name: m[1], Args: m[2]})
+		}
+		if strings.Contains(rec.LastText, SlowMarker) {
+			slow = true
+			reply = SlowReply
 		}
 	}
 	s.mu.Lock()
@@ -185,8 +200,19 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		send(chunk(map[string]any{"role": "assistant", "tool_calls": toolCalls(rec.ToolCalls, true)}, nil))
 		finish = "tool_calls"
 	} else {
+		// Ответ идёт по словам, как у настоящей модели.
 		send(chunk(map[string]any{"role": "assistant", "content": ""}, nil))
-		send(chunk(map[string]any{"content": reply}, nil))
+		words := strings.SplitAfter(reply, " ")
+		for _, word := range words {
+			if slow {
+				select {
+				case <-time.After(SlowDelay):
+				case <-r.Context().Done():
+					return // OpenCode остановил ответ
+				}
+			}
+			send(chunk(map[string]any{"content": word}, nil))
+		}
 	}
 	end := chunk(map[string]any{}, finish)
 	end["usage"] = usage

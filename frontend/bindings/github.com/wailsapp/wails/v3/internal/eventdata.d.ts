@@ -13,6 +13,7 @@ declare module "@wailsio/runtime" {
     namespace Events {
         interface CustomEvents {
             "agent:status": app$0.AgentStatusView;
+            "chat:event": app$0.ChatEvent;
         }
     }
 }

@@ -43,6 +43,8 @@
 
   /* Тени */
   --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --shadow-panel: 0 16px 48px rgba(0, 0, 0, 0.55);
+  --shadow-fab: 0 8px 24px rgba(0, 0, 0, 0.5);
 
   /* Шрифт */
   --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif;
@@ -120,6 +122,8 @@
   /* Размеры: иконки */
   --icon-xs: 12px;
   --icon-chevron: 14px;
+  --icon-note: 14px;
+  --icon-fab: 24px;
   --icon-sm: 15px;
   --icon-md: 16px;
   --icon-nav: 17px;
@@ -152,4 +156,20 @@
   --textarea-height: 72px;
   --link-name-width: 150px;
   --swatch-size: 22px;
+
+  /* Размеры: чат */
+  --fab-size: 56px;
+  --chat-panel-width: 400px;
+  --chat-panel-height: 560px;
+  --chat-panel-bottom: 96px;
+  --chat-header-height: 56px;
+  --chat-list-width: 290px;
+  --chat-item-height: 60px;
+  --chat-bubble-max-panel: 290px;
+  --chat-bubble-max-screen: 320px;
+  --chat-text-max-screen: 560px;
+  --chat-send-size: 32px;
+  --chat-menu-width: 200px;
+  --font-size-chat-title: 16px;
+  --radius-bubble: 14px 14px 4px 14px;
 }

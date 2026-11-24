@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TagView } from '../bindings/daily-agent/internal/app';
+import { ChatFab, ChatPanel } from './components/chat/ChatPanel';
 import { MeetingCard } from './components/MeetingCard';
 import { Modal } from './components/Modal';
 import { Sidebar } from './components/Sidebar';
@@ -7,6 +8,7 @@ import { NewTagForm } from './components/TagEditor';
 import { TaskCard } from './components/TaskCard';
 import { CardsContext, type OpenCard } from './lib/cards';
 import { DataProvider, useData } from './lib/data';
+import { ChatsScreen } from './screens/ChatsScreen';
 import { MeetingsScreen } from './screens/MeetingsScreen';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { SearchScreen } from './screens/SearchScreen';
@@ -29,6 +31,10 @@ function Shell() {
   const [query, setQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [card, setCard] = useState<OpenCard | null>(null);
+  // Маленький чат: открыт ли и какой в нём чат. Большой чат: выбранный чат.
+  const [chatOpen, setChatOpen] = useState(false);
+  const [panelChat, setPanelChat] = useState<string | null>(null);
+  const [bigChat, setBigChat] = useState<string | null>(null);
 
   // Поиск запускается, когда ввод замирает на 200 мс.
   useEffect(() => {
@@ -67,7 +73,15 @@ function Shell() {
   else if (section === 'meetings') screen = <MeetingsScreen />;
   else if (section === 'inbox') screen = <TasksScreen mode="inbox" />;
   else if (section === 'backlog') screen = <TasksScreen key={tagFilter?.id ?? 'all'} mode="backlog" tag={tagFilter} onClearTag={() => setTagFilter(null)} />;
+  else if (section === 'chats') screen = <ChatsScreen selectedId={bigChat} onSelect={setBigChat} />;
   else screen = <PlaceholderScreen title={SECTION_TITLES[section]} />;
+  const inChats = !searching && section === 'chats';
+
+  const openBigChat = (id: string | null) => {
+    setChatOpen(false);
+    setBigChat(id);
+    select('chats');
+  };
 
   return (
     <CardsContext.Provider value={cards}>
@@ -83,6 +97,9 @@ function Shell() {
         />
         <main className="main" data-screen={searching ? 'search' : section}>{screen}</main>
       </div>
+
+      {!inChats && chatOpen && <ChatPanel chatId={panelChat} onChatChange={setPanelChat} onOpenBig={openBigChat} />}
+      {!inChats && <ChatFab open={chatOpen} onToggle={() => setChatOpen((o) => !o)} />}
 
       {card?.kind === 'task' && <TaskCard key={card.id ?? 'new'} taskId={card.id} onClose={closeCard} />}
       {card?.kind === 'meeting' && <MeetingCard key={card.id ?? 'new'} meetingId={card.id} onClose={closeCard} />}

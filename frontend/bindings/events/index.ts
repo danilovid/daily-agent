@@ -13,3 +13,8 @@ import "../github.com/wailsapp/wails/v3/internal/eventcreate.js";
  */
 export const AgentStatus = "agent:status";
 
+/**
+ * Name of the custom event "chat:event".
+ */
+export const ChatEvent = "chat:event";
+

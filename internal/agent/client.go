@@ -163,10 +163,17 @@ func (c *Client) Wait(ctx context.Context, sessionID string) error {
 	return c.do(ctx, http.MethodPost, "/api/experimental/session/"+url.PathEscape(sessionID)+"/wait", nil, nil)
 }
 
-// Message — сообщение сессии. Нужны только ответы агента и запись о завершении.
+// Message — сообщение сессии: вопрос (user), контекст от приложения
+// (synthetic), ответ агента (assistant), запись о завершении (idle) и другие.
 type Message struct {
-	ID      string    `json:"id"`
-	Type    string    `json:"type"` // user, assistant, idle и другие
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	// Text — у user и synthetic.
+	Text     string         `json:"text"`
+	Metadata map[string]any `json:"metadata"`
+	Time     struct {
+		Created float64 `json:"created"` // миллисекунды Unix
+	} `json:"time"`
 	Content []Content `json:"content"`
 	Finish  string    `json:"finish"`
 	Outcome string    `json:"outcome"` // у idle: succeeded, failed, interrupted

@@ -1,18 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Events } from '@wailsio/runtime';
-import { AgentService } from '../../bindings/daily-agent/internal/app';
 import type { AgentStatusView } from '../../bindings/daily-agent/internal/app';
-
-/** Состояние OpenCode: при открытии окна и по событию agent:status. */
-function useAgentStatus(): AgentStatusView | null {
-  const [status, setStatus] = useState<AgentStatusView | null>(null);
-  useEffect(() => {
-    AgentService.Status().then(setStatus).catch(() => setStatus(null));
-    const off = Events.On('agent:status', (event) => setStatus(event.data as AgentStatusView));
-    return () => off();
-  }, []);
-  return status;
-}
+import { useAgentStatus } from '../lib/agent';
 
 function describe(s: AgentStatusView | null): { text: string; tone: 'online' | 'pending' | 'error' | 'off' } {
   switch (s?.state) {

@@ -98,3 +98,29 @@ export const ChevronDownIcon = (p: IconProps) => (
 export const SmallCheckIcon = (p: IconProps) => (
   <Svg size="var(--icon-xs)" strokeWidth={2.4} {...p}><path d="M5 12.5l4.5 4.5L19 7.5" /></Svg>
 );
+
+export const ExpandIcon = (p: IconProps) => (
+  <Svg size="var(--icon-nav)" {...p}>
+    <path d="M14 5h5v5" /><path d="M19 5l-6 6" /><path d="M10 19H5v-5" /><path d="M5 19l6-6" />
+  </Svg>
+);
+
+export const SendIcon = (p: IconProps) => (
+  <Svg strokeWidth={2.2} {...p}><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></Svg>
+);
+
+export const StopIcon = (p: IconProps) => (
+  <Svg {...p}><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" /></Svg>
+);
+
+export const MoreIcon = (p: IconProps) => (
+  <Svg size="var(--icon-lg)" strokeWidth={2.6} {...p}><path d="M6 12h.01" /><path d="M12 12h.01" /><path d="M18 12h.01" /></Svg>
+);
+
+export const NoteIcon = (p: IconProps) => (
+  <Svg size="var(--icon-note)" {...p}><circle cx="12" cy="12" r="8" /><path d="M12 11v5" /><path d="M12 8h.01" /></Svg>
+);
+
+export const ToolIcon = (p: IconProps) => (
+  <Svg size="var(--icon-note)" {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></Svg>
+);
