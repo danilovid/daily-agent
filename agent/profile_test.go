@@ -74,12 +74,11 @@ func TestRenderDeniesEverythingByDefault(t *testing.T) {
 	if r.Model != "" || len(r.Providers) != 0 {
 		t.Errorf("без модели не должно быть провайдера: %q %+v", r.Model, r.Providers)
 	}
-	// Встроенные инструменты выключены как плагины, автопоиск моделей и
-	// загрузка каталога тоже.
+	// Встроенные инструменты выключены как плагины, автопоиск локальных
+	// моделей тоже. Каталог провайдеров встроенный и нужен для облачных моделей.
 	for _, p := range []string{
 		"-opencode.tool.shell", "-opencode.tool.edit", "-opencode.tool.write", "-opencode.tool.patch",
 		"-opencode.tool.read", "-opencode.tool.webfetch", "-opencode.tool.websearch", "-opencode.tool.subagent",
-		"-opencode.models.dev",
 		"-opencode.provider.ollama", "-opencode.provider.lmstudio", "-opencode.provider.vllm",
 	} {
 		found := false
@@ -109,6 +108,37 @@ func TestRenderProviderWithoutSecrets(t *testing.T) {
 	last := r.Experimental.Policies[len(r.Experimental.Policies)-1]
 	if last != (Rule{Action: "provider.use", Resource: "daily-model", Effect: "allow"}) {
 		t.Errorf("свой провайдер должен быть разрешён последним правилом: %+v", last)
+	}
+}
+
+func TestRenderImportedAndCatalogProviders(t *testing.T) {
+	r := render(t, Options{
+		Provider: &Provider{ID: "daily-model", BaseURL: "http://127.0.0.1:9999/v1", ModelID: "test-model"},
+		Imported: map[string]map[string]any{
+			"lab": {"package": "@opencode/ai/providers/openai-compatible", "settings": map[string]any{"baseURL": "https://llm.lab.example.test/v1"}},
+		},
+		Catalog: []string{"openai", "lab"},
+		Default: "lab/big-model",
+	})
+	if r.Model != "lab/big-model" || r.Agents[AgentID].Model != "lab/big-model" {
+		t.Errorf("модель по умолчанию: %q", r.Model)
+	}
+	if _, ok := r.Providers["lab"]; !ok || len(r.Providers) != 2 {
+		t.Fatalf("провайдеры: %+v", r.Providers)
+	}
+	var allowed []string
+	for _, p := range r.Experimental.Policies[1:] {
+		allowed = append(allowed, p.Resource)
+	}
+	if strings.Join(allowed, ",") != "lab,openai,daily-model" || r.Experimental.Policies[0].Resource != "*" {
+		t.Fatalf("политики: %+v", r.Experimental.Policies)
+	}
+	// Модель неподключённого провайдера не принимается.
+	if _, err := Render(Options{Catalog: []string{"openai"}, Default: "anthropic/m"}); err == nil {
+		t.Error("ждали ошибку для модели неподключённого провайдера")
+	}
+	if _, err := Render(Options{Imported: map[string]map[string]any{"bad id": {}}}); err == nil {
+		t.Error("ждали ошибку для неверного идентификатора")
 	}
 }
 

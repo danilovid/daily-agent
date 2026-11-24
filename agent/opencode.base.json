@@ -15,7 +15,6 @@
     "-opencode.tool.subagent",
     "-opencode.tool.skill",
     "-opencode.tool.question",
-    "-opencode.models.dev",
     "-opencode.vcs.git",
     "-opencode.vcs.hg",
     "-opencode.provider.ollama",

@@ -322,3 +322,71 @@ func ReplyFromMessages(msgs []Message) (Reply, string) {
 	r.Text = strings.Join(texts, "\n\n")
 	return r, errText
 }
+
+// ModelInfo — модель, которой может пользоваться агент.
+type ModelInfo struct {
+	ID         string `json:"id"`
+	ProviderID string `json:"providerID"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Enabled    *bool  `json:"enabled"`
+}
+
+// Ref — ссылка на модель для сессий.
+func (m ModelInfo) Ref() ModelRef { return ModelRef{ID: m.ID, ProviderID: m.ProviderID} }
+
+// ListModels возвращает модели разрешённых провайдеров. Провайдеров, которых
+// запрещает политика профиля, в списке нет.
+func (c *Client) ListModels(ctx context.Context) ([]ModelInfo, error) {
+	var resp struct {
+		Data []ModelInfo `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/model", nil, &resp); err != nil {
+		return nil, err
+	}
+	out := resp.Data[:0]
+	for _, m := range resp.Data {
+		if m.Enabled != nil && !*m.Enabled {
+			continue
+		}
+		out = append(out, m)
+	}
+	return out, nil
+}
+
+// Integration — провайдер из встроенного каталога OpenCode.
+type Integration struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// KeyEnv — переменные окружения, из которых OpenCode берёт ключ.
+	// Пусто — провайдер подключается только входом через браузер.
+	KeyEnv []string `json:"-"`
+}
+
+// Integrations возвращает каталог провайдеров.
+func (c *Client) Integrations(ctx context.Context) ([]Integration, error) {
+	var resp struct {
+		Data []struct {
+			ID      string `json:"id"`
+			Name    string `json:"name"`
+			Methods []struct {
+				Type  string   `json:"type"`
+				Names []string `json:"names"`
+			} `json:"methods"`
+		} `json:"data"`
+	}
+	if err := c.do(ctx, http.MethodGet, "/api/integration", nil, &resp); err != nil {
+		return nil, err
+	}
+	out := make([]Integration, 0, len(resp.Data))
+	for _, d := range resp.Data {
+		in := Integration{ID: d.ID, Name: d.Name}
+		for _, m := range d.Methods {
+			if m.Type == "env" {
+				in.KeyEnv = append(in.KeyEnv, m.Names...)
+			}
+		}
+		out = append(out, in)
+	}
+	return out, nil
+}

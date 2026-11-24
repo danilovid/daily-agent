@@ -2,15 +2,18 @@ package agent
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"time"
 )
 
 // Manager — агент приложения: надзор за OpenCode, который можно перезапустить
-// с другой моделью. Сервисы окна берут у него клиента, состояние и модель.
+// с другими моделями. Сервисы окна берут у него клиента, состояние и модели.
 //
-// Модель живёт в настройках OpenCode и в окружении его процесса, поэтому
-// смена модели — это перезапуск сервера. Адрес и пароль после него новые.
+// Провайдеры живут в настройках OpenCode, а их ключи — в окружении его
+// процесса, поэтому смена провайдеров или ключей — это перезапуск сервера.
+// Адрес и пароль после него новые. Выбор модели из уже подключённых
+// перезапуска не требует: модель задаётся каждой сессии.
 type Manager struct {
 	base Config
 
@@ -21,7 +24,7 @@ type Manager struct {
 
 	mu          sync.Mutex
 	sup         *Supervisor
-	model       *Model
+	setup       *Setup
 	listeners   []func(Status)
 	ctx         context.Context
 	started     bool
@@ -31,23 +34,43 @@ type Manager struct {
 	binary      string
 }
 
-// NewManager создаёт агента. base — настройки надзора без модели,
-// model — модель или nil. Сервер запускается методом Start.
-func NewManager(base Config, model *Model) *Manager {
-	m := &Manager{base: base, model: model}
-	m.sup = m.newSupervisor(model)
+// NewManager создаёт агента. base — настройки надзора без моделей,
+// setup — модели или nil. Сервер запускается методом Start.
+func NewManager(base Config, setup *Setup) *Manager {
+	m := &Manager{base: base, setup: normalizeSetup(setup)}
+	m.sup = m.newSupervisor(m.setup)
 	return m
 }
 
-func (m *Manager) newSupervisor(model *Model) *Supervisor {
-	cfg := m.base
-	cfg.Options.Provider = nil
-	cfg.ExtraEnv = append([]string(nil), m.base.ExtraEnv...)
-	if model != nil {
-		cfg.Options.Provider = model.Provider()
-		cfg.ExtraEnv = append(cfg.ExtraEnv, model.Env()...)
+func normalizeSetup(s *Setup) *Setup {
+	if s == nil {
+		return &Setup{}
 	}
-	sup := NewSupervisor(cfg)
+	return s
+}
+
+// serverConfig — то, что требует перезапуска сервера: провайдеры и ключи.
+func (m *Manager) serverConfig(s *Setup) Config {
+	cfg := m.base
+	tools := m.base.Options.AllowedTools
+	cfg.Options = s.Options
+	cfg.Options.AllowedTools = tools
+	if s.Work != nil {
+		cfg.Options.Default = s.Work.String()
+	}
+	cfg.ExtraEnv = append(append([]string(nil), m.base.ExtraEnv...), s.Env...)
+	return cfg
+}
+
+// sameServer — новые модели не требуют перезапуска: те же провайдеры и
+// ключи. Модель по умолчанию не в счёт: сессии получают модель явно.
+func sameServer(a, b Config) bool {
+	a.Options.Default, b.Options.Default = "", ""
+	return reflect.DeepEqual(a.Options, b.Options) && reflect.DeepEqual(a.ExtraEnv, b.ExtraEnv)
+}
+
+func (m *Manager) newSupervisor(s *Setup) *Supervisor {
+	sup := NewSupervisor(m.serverConfig(s))
 	sup.OnChange(func(st Status) {
 		m.mu.Lock()
 		current := sup == m.sup
@@ -112,20 +135,40 @@ func (m *Manager) Stop() {
 	sup.Stop()
 }
 
-// SetModel меняет модель агента и перезапускает сервер, если он запущен.
-// nil — модели нет: сервер работает, но агент не ответит.
+// SetModel ставит одну свою модель для всех задач. nil — модели нет:
+// сервер работает, но агент не ответит.
 func (m *Manager) SetModel(model *Model) {
+	if model == nil {
+		m.SetSetup(nil)
+		return
+	}
+	m.SetSetup(model.Setup())
+}
+
+// SetSetup меняет модели агента. Если изменились провайдеры или ключи,
+// запущенный сервер перезапускается; если только выбор модели — нет.
+func (m *Manager) SetSetup(setup *Setup) {
+	setup = normalizeSetup(setup)
 	m.switchMu.Lock()
 	defer m.switchMu.Unlock()
-	next := m.newSupervisor(model)
 	m.mu.Lock()
 	if m.stopped {
 		m.mu.Unlock()
 		return
 	}
+	same := sameServer(m.serverConfig(m.setup), m.serverConfig(setup))
+	if same {
+		m.setup = setup
+		m.mu.Unlock()
+		m.notify()
+		return
+	}
+	m.mu.Unlock()
+	next := m.newSupervisor(setup)
+	m.mu.Lock()
 	old := m.sup
 	m.sup = next
-	m.model = model
+	m.setup = setup
 	started := m.started
 	if started {
 		m.switching = true
@@ -160,6 +203,8 @@ func (m *Manager) Status() Status {
 	if st.Binary == "" {
 		st.Binary = binary
 	}
+	st.ModelConfigured = m.ModelFor(false) != nil
+	st.PersonalConfigured = m.ModelFor(true) != nil
 	return st
 }
 
@@ -185,12 +230,21 @@ func (m *Manager) WaitReady(ctx context.Context) error {
 // Workspace — рабочая папка агента.
 func (m *Manager) Workspace() string { return m.base.Profile.Workspace() }
 
-// Model — ссылка на модель для сессий или nil, если модель не настроена.
-func (m *Manager) Model() *ModelRef {
+// Model — модель для рабочих задач или nil, если она не выбрана.
+func (m *Manager) Model() *ModelRef { return m.ModelFor(false) }
+
+// ModelFor — модель для рабочих или личных задач. Для личных без своей
+// модели — та же, что для рабочих. Nil — модели нет.
+func (m *Manager) ModelFor(personal bool) *ModelRef {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.model == nil {
+	ref := m.setup.Work
+	if personal && m.setup.Personal != nil {
+		ref = m.setup.Personal
+	}
+	if ref == nil {
 		return nil
 	}
-	return m.model.Ref()
+	out := *ref
+	return &out
 }

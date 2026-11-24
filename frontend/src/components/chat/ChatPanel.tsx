@@ -12,13 +12,13 @@ type PanelProps = {
   onOpenBig: (id: string | null) => void;
 };
 
-/** Маленький чат поверх экрана. Новый чат получает агенду на сегодня. */
+/** Маленький чат поверх экрана. Он рабочий: новый чат получает агенду на сегодня. */
 export function ChatPanel({ chatId, onChatChange, onOpenBig }: PanelProps) {
   const { refresh } = useData();
   const [context, setContext] = useState('');
 
   const create = useCallback(async () => {
-    const view = await ChatsService.Create(true);
+    const view = await ChatsService.Create(true, false);
     setContext(view.context);
     onChatChange(view.id);
     return view.id;

@@ -19,10 +19,12 @@ import * as $models from "./models.js";
 
 /**
  * Create создаёт чат. withAgenda — добавить в чат агенду на сегодня:
- * так открывается маленький чат с экрана «Сегодня».
+ * так открывается маленький чат с экрана «Сегодня». personal — личный чат:
+ * он идёт в модель для личных задач, возможно облачную, поэтому агенду,
+ * задачи и встречи не получает.
  */
-export function Create(withAgenda: boolean): $CancellablePromise<$models.ChatView> {
-    return $Call.ByID(3455928296, withAgenda);
+export function Create(withAgenda: boolean, personal: boolean): $CancellablePromise<$models.ChatView> {
+    return $Call.ByID(3455928296, withAgenda, personal);
 }
 
 /**

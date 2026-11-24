@@ -257,6 +257,14 @@
   cursor: pointer;
 }
 .chat-item--active { background: var(--color-bg-chip); }
+.chat-item__badge {
+  flex-shrink: 0;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-selected);
+  font-size: var(--font-size-2xs);
+  color: var(--color-text-secondary);
+}
 .chat-item__top { display: flex; align-items: baseline; gap: var(--space-8); }
 .chat-item__title {
   flex: 1;

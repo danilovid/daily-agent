@@ -49,6 +49,9 @@ func main() {
 	keychain := agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)}
 	stub := os.Getenv(EnvStubModel) == "1"
 	backend, stopModel := newAgent(ctx, filepath.Join(filepath.Dir(dbPath), "agent"), db, keychain, stub)
+	// Провайдеры моделей из настроек OpenCode пользователя: только описания,
+	// без ключей, MCP-серверов, плагинов и прав.
+	userConfig := agent.LoadUserConfig
 	defer stopModel()
 
 	// Окно ещё не создано, поэтому события чата уходят через переменную.
@@ -74,7 +77,7 @@ func main() {
 			application.NewService(app.NewLinksService(db, openURL)),
 			application.NewService(app.NewAgentService(backend.Status, clock)),
 			application.NewService(chats),
-			application.NewService(app.NewSettingsService(db, keychain, backend, clock, stub)),
+			application.NewService(app.NewSettingsService(db, keychain, backend, clock, userConfig, stub)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -129,26 +132,31 @@ func main() {
 	}
 }
 
-// newAgent готовит агента. Модель: заглушка при DAILY_AGENT_STUB_MODEL=1,
-// иначе настройки приложения, а без них — переменные окружения. Ключ — из
-// Связки ключей. Без модели OpenCode запускается, но агент не ответит.
+// newAgent готовит агента. Модели: заглушка при DAILY_AGENT_STUB_MODEL=1,
+// иначе настройки приложения: своя модель по адресу, провайдеры из настроек
+// OpenCode пользователя и облачные провайдеры каталога. Ключи — из Связки
+// ключей. Без модели OpenCode запускается, но агент не ответит.
 func newAgent(ctx context.Context, root string, db *store.Store, keychain agent.Keychain, stub bool) (*agent.Manager, func()) {
 	cfg := agent.Config{Profile: agent.Profile{Root: root}, Logf: log.Printf}
-	var model *agent.Model
+	var setup *agent.Setup
 	stop := func() {}
 	if stub {
 		srv, err := stubmodel.Start()
 		if err != nil {
 			log.Printf("заглушка модели: %v", err)
 		} else {
-			model = &agent.Model{BaseURL: srv.URL, ModelID: stubmodel.ModelID}
+			setup = agent.Model{BaseURL: srv.URL, ModelID: stubmodel.ModelID}.Setup()
 			stop = func() { srv.Close() }
 			log.Printf("агент работает с заглушкой модели")
 		}
-	} else if m, _, err := app.LoadModel(ctx, db, keychain); err != nil {
-		log.Printf("модель агента: %v", err)
 	} else {
-		model = m
+		user, err := agent.LoadUserConfig()
+		if err != nil {
+			log.Printf("настройки OpenCode: %v", err)
+		}
+		if setup, err = app.LoadSetup(ctx, db, keychain, user); err != nil {
+			log.Printf("модели агента: %v", err)
+		}
 	}
-	return agent.NewManager(cfg, model), stop
+	return agent.NewManager(cfg, setup), stop
 }

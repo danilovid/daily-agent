@@ -17,8 +17,21 @@ func TestChats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.Kind != ChatKindUser || first.ID == "" {
+	if first.Kind != ChatKindUser || first.Purpose != ChatPurposeWork || first.ID == "" {
 		t.Fatalf("чат: %+v", first)
+	}
+	personal, err := s.CreateChat(ctx, Chat{SessionID: "ses_p", Title: "Личный", Purpose: ChatPurposePersonal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := s.GetChat(ctx, personal.ID); got.Purpose != ChatPurposePersonal {
+		t.Fatalf("личный чат: %+v", got)
+	}
+	if _, err := s.CreateChat(ctx, Chat{SessionID: "ses_x", Purpose: "other"}); err == nil {
+		t.Fatal("ждали ошибку для неизвестного назначения")
+	}
+	if err := s.DeleteChat(ctx, personal.ID); err != nil {
+		t.Fatal(err)
 	}
 	now = now.Add(time.Minute)
 	second, _ := s.CreateChat(ctx, Chat{SessionID: "ses_b", Title: "Второй", Kind: ChatKindScheduled})
@@ -64,7 +77,7 @@ func TestChats(t *testing.T) {
 	}
 	var n int
 	s.DB().QueryRow(`SELECT COUNT(*) FROM chats WHERE deleted_at IS NOT NULL`).Scan(&n)
-	if n != 1 {
+	if n != 2 { // первый и личный чат
 		t.Fatal("удаление чата должно быть мягким")
 	}
 }

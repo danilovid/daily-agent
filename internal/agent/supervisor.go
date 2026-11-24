@@ -96,7 +96,7 @@ func NewSupervisor(cfg Config) *Supervisor {
 	cfg.defaults()
 	return &Supervisor{
 		cfg:     cfg,
-		status:  Status{State: StateStopped, ModelConfigured: cfg.Options.Provider != nil},
+		status:  Status{State: StateStopped, ModelConfigured: cfg.Options.Provider != nil || cfg.Options.Default != ""},
 		stopCh:  make(chan struct{}),
 		done:    make(chan struct{}),
 		readyCh: make(chan struct{}),

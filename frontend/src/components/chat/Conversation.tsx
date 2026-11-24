@@ -19,13 +19,15 @@ type Props = {
   onDone?: () => void;
   /** Текст, когда переписки ещё нет. */
   emptyText: string;
+  /** Личный чат: своя модель, без рабочих данных. */
+  personal?: boolean;
 };
 
 /** Переписка с агентом: история, ответ по мере готовности, поле ввода. */
-export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyText }: Props) {
+export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyText, personal = false }: Props) {
   const status = useAgentStatus();
-  const blocked = agentUnavailable(status);
-  const settingsHint = agentSettingsHint(status);
+  const blocked = agentUnavailable(status, personal);
+  const settingsHint = agentSettingsHint(status, personal);
   const { openSettings } = useCards();
   const [view, setView] = useState<ChatView | null>(null);
   const [pending, setPending] = useState<ChatMessageView[]>([]);

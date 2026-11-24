@@ -94,25 +94,46 @@
 }
 .settings-action:disabled { color: var(--color-text-tertiary); cursor: default; }
 
-/* Значение-список: «Вместе с приложением», модель */
+.settings-action--danger { color: var(--color-danger); }
+
+/* Выбор модели: системный список, оформленный как в макете */
 .settings-select {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: var(--space-6);
+  flex-shrink: 0;
+  max-width: var(--settings-value-max);
+}
+.settings-select select {
   max-width: var(--settings-value-max);
   height: var(--control-height);
-  padding: 0 var(--space-8);
+  padding: 0 calc(var(--space-8) + var(--icon-xs) + var(--space-6)) 0 var(--space-8);
+  -webkit-appearance: none;
+  appearance: none;
   background: transparent;
   border: 0;
   border-radius: var(--radius-sm);
   color: var(--color-text);
   font: inherit;
   font-size: var(--font-size-sm);
-  white-space: nowrap;
+  text-align: right;
+  text-overflow: ellipsis;
   cursor: pointer;
 }
-.settings-select span { overflow: hidden; text-overflow: ellipsis; }
-.settings-select svg { color: var(--color-text-secondary); }
+.settings-select select:disabled { color: var(--color-text-tertiary); cursor: default; }
+.settings-select svg {
+  position: absolute;
+  right: var(--space-8);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+}
+
+.settings-section__note {
+  margin: var(--space-6) 0 0;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
 
 .settings-note {
   margin: 0;

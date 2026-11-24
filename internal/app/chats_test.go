@@ -25,6 +25,8 @@ type fakeOpenCode struct {
 	messages   string            // ответ на GET …/message
 	models     map[string]string // сессия → модель, JSON
 	switches   []string          // переключения модели
+	modelList  string            // ответ на GET /api/model
+	catalog    string            // ответ на GET /api/integration
 }
 
 func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
@@ -92,6 +94,16 @@ func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 	mux.HandleFunc("POST /api/experimental/session/{id}/wait", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
+	mux.HandleFunc("GET /api/model", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		io.WriteString(w, `{"location":{},"data":[`+f.modelList+`]}`)
+	})
+	mux.HandleFunc("GET /api/integration", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		io.WriteString(w, `{"location":{},"data":[`+f.catalog+`]}`)
+	})
 	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"version":"`+agent.PinnedVersion+`","pid":1}`)
 	})
@@ -110,9 +122,10 @@ func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 }
 
 type fakeBackend struct {
-	url    string
-	status agent.Status
-	model  *agent.ModelRef
+	url      string
+	status   agent.Status
+	model    *agent.ModelRef
+	personal *agent.ModelRef
 }
 
 func (b *fakeBackend) Client() (*agent.Client, error) {
@@ -121,9 +134,14 @@ func (b *fakeBackend) Client() (*agent.Client, error) {
 	}
 	return agent.NewClient(b.url, "x"), nil
 }
-func (b *fakeBackend) Status() agent.Status   { return b.status }
-func (b *fakeBackend) Workspace() string      { return "/tmp/ws" }
-func (b *fakeBackend) Model() *agent.ModelRef { return b.model }
+func (b *fakeBackend) Status() agent.Status { return b.status }
+func (b *fakeBackend) Workspace() string    { return "/tmp/ws" }
+func (b *fakeBackend) ModelFor(personal bool) *agent.ModelRef {
+	if personal && b.personal != nil {
+		return b.personal
+	}
+	return b.model
+}
 
 type chatHarness struct {
 	svc     *ChatsService
@@ -168,7 +186,7 @@ func TestChatCreateWithAgendaAndSend(t *testing.T) {
 	mustMeeting(t, h.store, "Планёрка", at(24, 10, 0))
 	mustTask(t, h.store, store.Task{Title: "Ответить Марине", Status: store.StatusBacklog, DueDate: "2026-11-24"})
 
-	chat, err := h.svc.Create(ctx, true)
+	chat, err := h.svc.Create(ctx, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,7 +256,7 @@ func TestChatCreateWithAgendaAndSend(t *testing.T) {
 func TestChatHistoryView(t *testing.T) {
 	h := newChatHarness(t)
 	ctx := context.Background()
-	chat, _ := h.svc.Create(ctx, false)
+	chat, _ := h.svc.Create(ctx, false, false)
 	h.api.messages = `{"cursor":{},"data":[
 		{"type":"agent-switched","id":"a0"},
 		{"type":"synthetic","id":"s1","text":"длинный контекст","metadata":{"dailyAgentContext":"агенда на 24 ноября"},"time":{"created":1795540000000}},
@@ -283,10 +301,10 @@ func TestChatHistoryView(t *testing.T) {
 func TestChatWithoutAgent(t *testing.T) {
 	h := newChatHarness(t)
 	ctx := context.Background()
-	chat, _ := h.svc.Create(ctx, false)
+	chat, _ := h.svc.Create(ctx, false, false)
 
 	h.backend.model = nil
-	if _, err := h.svc.Create(ctx, false); err == nil || !strings.Contains(err.Error(), "Модель агента не настроена") {
+	if _, err := h.svc.Create(ctx, false, false); err == nil || !strings.Contains(err.Error(), "Модель для рабочих задач не выбрана") {
 		t.Errorf("без модели: %v", err)
 	}
 	h.backend.model = &agent.ModelRef{ID: "m", ProviderID: agent.ProviderID}
@@ -308,7 +326,7 @@ func TestChatWithoutAgent(t *testing.T) {
 func TestChatValidationRenameStopDelete(t *testing.T) {
 	h := newChatHarness(t)
 	ctx := context.Background()
-	chat, _ := h.svc.Create(ctx, false)
+	chat, _ := h.svc.Create(ctx, false, false)
 
 	if err := h.svc.Send(ctx, chat.ID, "   "); err == nil {
 		t.Error("пустое сообщение")
@@ -346,7 +364,7 @@ func TestChatValidationRenameStopDelete(t *testing.T) {
 func TestChatSwitchesModelAfterSettingsChange(t *testing.T) {
 	h := newChatHarness(t)
 	ctx := context.Background()
-	chat, _ := h.svc.Create(ctx, false)
+	chat, _ := h.svc.Create(ctx, false, false)
 	// Сессия создана с моделью m. Модель в настройках сменилась на m2.
 	h.api.mu.Lock()
 	h.api.models = map[string]string{"ses_1": `{"id":"m","providerID":"daily-model"}`}
@@ -373,7 +391,7 @@ func TestChatSwitchesModelAfterSettingsChange(t *testing.T) {
 func TestChatStatusHandlerEndsRunningReplies(t *testing.T) {
 	h := newChatHarness(t)
 	ctx := context.Background()
-	chat, _ := h.svc.Create(ctx, false)
+	chat, _ := h.svc.Create(ctx, false, false)
 	if err := h.svc.Send(ctx, chat.ID, "Вопрос"); err != nil {
 		t.Fatal(err)
 	}
@@ -394,5 +412,69 @@ func TestChatStatusHandlerEndsRunningReplies(t *testing.T) {
 	}
 	if err := h.svc.Send(ctx, chat.ID, "Снова"); err != nil {
 		t.Fatalf("после обрыва можно писать снова: %v", err)
+	}
+}
+
+func TestPersonalChat(t *testing.T) {
+	h := newChatHarness(t)
+	ctx := context.Background()
+	h.backend.personal = &agent.ModelRef{ID: "cloud", ProviderID: "openai"}
+
+	if _, err := h.svc.Create(ctx, true, true); err == nil {
+		t.Fatal("личный чат не получает агенду")
+	}
+	chat, err := h.svc.Create(ctx, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !chat.Personal || chat.Context != "" {
+		t.Fatalf("личный чат: %+v", chat)
+	}
+	h.api.mu.Lock()
+	synthetic := len(h.api.synthetic)
+	h.api.mu.Unlock()
+	if synthetic != 0 {
+		t.Fatal("в личный чат ушла агенда")
+	}
+	if err := h.svc.Send(ctx, chat.ID, "Личный вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	h.svc.setRunning(chat.ID, false)
+	work, _ := h.svc.Create(ctx, false, false)
+	if err := h.svc.Send(ctx, work.ID, "Рабочий вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	h.api.mu.Lock()
+	switches := strings.Join(h.api.switches, ";")
+	h.api.mu.Unlock()
+	// Личный чат переключён на облачную модель, рабочий — на рабочую.
+	if !strings.Contains(switches, `ses_1:{"id":"cloud","providerID":"openai"}`) || !strings.Contains(switches, `ses_2:{"id":"m","providerID":"daily-model"}`) {
+		t.Fatalf("модели чатов: %s", switches)
+	}
+	list, _ := h.svc.List(ctx)
+	personal := 0
+	for _, c := range list {
+		if c.Personal {
+			personal++
+		}
+	}
+	if len(list) != 2 || personal != 1 {
+		t.Fatalf("список: %+v", list)
+	}
+
+	// Без личной модели личный чат идёт в рабочую.
+	h.backend.personal = nil
+	if v, _ := h.svc.Open(ctx, chat.ID); v.Unavailable != "" {
+		t.Fatalf("личный чат без своей модели: %q", v.Unavailable)
+	}
+	// Без рабочей модели рабочий чат заблокирован, а переписка читается.
+	h.backend.model = nil
+	h.backend.personal = &agent.ModelRef{ID: "cloud", ProviderID: "openai"}
+	v, _ := h.svc.Open(ctx, work.ID)
+	if v.Unavailable != "Модель для рабочих задач не выбрана" {
+		t.Fatalf("рабочий чат без модели: %q", v.Unavailable)
+	}
+	if err := h.svc.Send(ctx, chat.ID, "Ещё личный"); err != nil {
+		t.Fatalf("личный чат без рабочей модели: %v", err)
 	}
 }

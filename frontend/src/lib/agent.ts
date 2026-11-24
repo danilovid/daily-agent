@@ -15,11 +15,12 @@ export function useAgentStatus(): AgentStatusView | null {
   return status;
 }
 
-/** Почему агенту сейчас нельзя написать, или null, если можно. */
-export function agentUnavailable(s: AgentStatusView | null): string | null {
+/** Почему агенту сейчас нельзя написать в рабочий или личный чат, или null, если можно. */
+export function agentUnavailable(s: AgentStatusView | null, personal = false): string | null {
   switch (s?.state) {
     case 'ready':
-      return s.modelConfigured ? null : 'Модель агента не настроена';
+      if (personal) return s.personalConfigured ? null : 'Модель для личных задач не выбрана';
+      return s.modelConfigured ? null : 'Модель для рабочих задач не выбрана';
     case 'starting':
       return 'OpenCode запускается…';
     case 'restarting':
@@ -35,8 +36,12 @@ export function agentUnavailable(s: AgentStatusView | null): string | null {
  * Подсказка, если агенту нельзя писать, пока не поправить настройки:
  * не задана модель или OpenCode не запускается. Иначе null.
  */
-export function agentSettingsHint(s: AgentStatusView | null): string | null {
-  if (s?.state === 'ready' && !s.modelConfigured) return 'Чтобы писать агенту, задайте модель в настройках.';
+export function agentSettingsHint(s: AgentStatusView | null, personal = false): string | null {
+  if (s?.state === 'ready' && !(personal ? s.personalConfigured : s.modelConfigured)) {
+    return personal
+      ? 'Чтобы писать в личный чат, выберите модель для личных задач в настройках.'
+      : 'Чтобы писать агенту, выберите модель для рабочих задач в настройках.';
+  }
   if (s?.state === 'failed') return 'OpenCode не запускается. Подробности — в настройках.';
   return null;
 }

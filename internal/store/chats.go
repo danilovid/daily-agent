@@ -15,22 +15,30 @@ const (
 	ChatKindScheduled = "scheduled"
 )
 
+// Назначение чата: рабочий или личный.
+const (
+	ChatPurposeWork     = "work"
+	ChatPurposePersonal = "personal"
+)
+
 // Chat — ссылка на сессию OpenCode. Переписка лежит в базе OpenCode.
 type Chat struct {
 	ID        string
 	SessionID string
 	Title     string
 	Kind      string
+	// Purpose — work или personal. Личный чат не получает рабочих данных.
+	Purpose   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-const chatColumns = `id, session_id, title, kind, created_at, updated_at`
+const chatColumns = `id, session_id, title, kind, purpose, created_at, updated_at`
 
 func scanChat(sc scanner) (Chat, error) {
 	var c Chat
 	var createdAt, updatedAt string
-	if err := sc.Scan(&c.ID, &c.SessionID, &c.Title, &c.Kind, &createdAt, &updatedAt); err != nil {
+	if err := sc.Scan(&c.ID, &c.SessionID, &c.Title, &c.Kind, &c.Purpose, &createdAt, &updatedAt); err != nil {
 		return Chat{}, err
 	}
 	var err error
@@ -54,11 +62,17 @@ func (s *Store) CreateChat(ctx context.Context, c Chat) (Chat, error) {
 	if c.Kind == "" {
 		c.Kind = ChatKindUser
 	}
+	if c.Purpose == "" {
+		c.Purpose = ChatPurposeWork
+	}
+	if c.Purpose != ChatPurposeWork && c.Purpose != ChatPurposePersonal {
+		return Chat{}, fmt.Errorf("неизвестное назначение чата %q", c.Purpose)
+	}
 	c.CreatedAt = s.stamp(c.CreatedAt)
 	c.UpdatedAt = c.CreatedAt
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO chats (id, session_id, title, kind, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
-		c.ID, c.SessionID, c.Title, c.Kind, FormatTime(c.CreatedAt), FormatTime(c.UpdatedAt))
+		INSERT INTO chats (id, session_id, title, kind, purpose, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		c.ID, c.SessionID, c.Title, c.Kind, c.Purpose, FormatTime(c.CreatedAt), FormatTime(c.UpdatedAt))
 	if err != nil {
 		return Chat{}, fmt.Errorf("запись чата: %w", err)
 	}

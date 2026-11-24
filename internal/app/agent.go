@@ -16,17 +16,20 @@ type AgentStatusView struct {
 	Version         string `json:"version"`
 	Error           string `json:"error"`
 	ModelConfigured bool   `json:"modelConfigured"`
-	Restarts        int    `json:"restarts"`
+	// PersonalConfigured — есть модель для личных задач.
+	PersonalConfigured bool `json:"personalConfigured"`
+	Restarts           int  `json:"restarts"`
 }
 
 // AgentStatusFrom переводит состояние надзора в вид для окна.
 func AgentStatusFrom(st agent.Status, clock Clock) AgentStatusView {
 	v := AgentStatusView{
-		State:           st.State,
-		Version:         st.Version,
-		Error:           st.Error,
-		ModelConfigured: st.ModelConfigured,
-		Restarts:        st.Restarts,
+		State:              st.State,
+		Version:            st.Version,
+		Error:              st.Error,
+		ModelConfigured:    st.ModelConfigured,
+		PersonalConfigured: st.PersonalConfigured,
+		Restarts:           st.Restarts,
 	}
 	if !st.Since.IsZero() {
 		v.Since = st.Since.In(clock.loc()).Format("15:04")
@@ -53,13 +56,16 @@ func (s *AgentService) Status() AgentStatusView {
 	return AgentStatusFrom(s.status(), s.clock)
 }
 
-// unavailableText объясняет, почему агенту сейчас нельзя написать.
-// Пусто — можно.
-func unavailableText(b AgentBackend) string {
+// unavailableText объясняет, почему агенту сейчас нельзя написать в рабочий
+// или личный чат. Пусто — можно.
+func unavailableText(b AgentBackend, personal bool) string {
 	st := b.Status()
 	if st.State == agent.StateReady {
-		if b.Model() == nil {
-			return "Модель агента не настроена"
+		if b.ModelFor(personal) == nil {
+			if personal {
+				return "Модель для личных задач не выбрана"
+			}
+			return "Модель для рабочих задач не выбрана"
 		}
 		return ""
 	}

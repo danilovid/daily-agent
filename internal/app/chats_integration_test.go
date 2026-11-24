@@ -7,6 +7,7 @@ package app
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -35,7 +36,7 @@ func startLiveChat(t *testing.T, st *store.Store, root string, stub *stubmodel.S
 	}
 	model := agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
 	lc := &liveChat{t: t, notify: make(chan ChatEvent, 1000)}
-	lc.backend = agent.NewManager(agent.Config{Profile: agent.Profile{Root: root}, Binary: bin, Logf: t.Logf}, &model)
+	lc.backend = agent.NewManager(agent.Config{Profile: agent.Profile{Root: root}, Binary: bin, Logf: t.Logf}, model.Setup())
 	lc.backend.Start(context.Background())
 	lc.waitReady()
 	lc.svc = NewChatsService(st, SystemClock(), lc.backend, NewTodayService(st, SystemClock()), func(e ChatEvent) {
@@ -90,7 +91,7 @@ func TestLiveChatStreamsAnswerAndKeepsHistory(t *testing.T) {
 	ctx := context.Background()
 
 	lc := startLiveChat(t, st, root, stub)
-	chat, err := lc.svc.Create(ctx, true)
+	chat, err := lc.svc.Create(ctx, true, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,7 @@ func TestLiveChatStop(t *testing.T) {
 	ctx := context.Background()
 
 	lc := startLiveChat(t, st, root, stub)
-	chat, err := lc.svc.Create(ctx, false)
+	chat, err := lc.svc.Create(ctx, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +216,7 @@ func TestLiveChatFollowsModelChange(t *testing.T) {
 	ctx := context.Background()
 
 	lc := startLiveChat(t, st, root, first)
-	chat, err := lc.svc.Create(ctx, false)
+	chat, err := lc.svc.Create(ctx, false, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,12 +279,12 @@ func TestLiveSettingsSaveAndCheck(t *testing.T) {
 
 	lc := startLiveChat(t, st, root, first)
 	secrets := &memSecrets{}
-	svc := NewSettingsService(st, secrets, lc.backend, SystemClock(), false)
+	svc := NewSettingsService(st, secrets, lc.backend, SystemClock(), nil, false)
 
 	if c := svc.CheckConnection(ctx); !c.OK || c.Version != agent.PinnedVersion {
 		t.Fatalf("связь: %+v", c)
 	}
-	if c := svc.CheckModel(ctx); !c.OK {
+	if c := svc.CheckModel(ctx, false); !c.OK {
 		t.Fatalf("модель: %+v", c)
 	}
 	view, err := svc.Agent(ctx)
@@ -299,14 +300,129 @@ func TestLiveSettingsSaveAndCheck(t *testing.T) {
 		t.Fatal(err)
 	}
 	lc.waitReady()
-	if c := svc.CheckModel(ctx); !c.OK {
+	if c := svc.CheckModel(ctx, false); !c.OK {
 		t.Fatalf("новая модель: %+v", c)
 	}
 	reqs := second.Requests()
 	if len(reqs) == 0 || reqs[len(reqs)-1].Model != "stub-model-2" || reqs[len(reqs)-1].LastText != ModelCheckPrompt || reqs[len(reqs)-1].APIKey != "test-key-live" {
 		t.Fatalf("запросы новой модели: %+v", reqs)
 	}
-	if secrets.key() != "test-key-live" {
+	if secrets.key(agent.KeychainAccount) != "test-key-live" {
 		t.Fatal("ключ не сохранён")
+	}
+}
+
+func TestLiveWorkAndPersonalModels(t *testing.T) {
+	work, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer work.Close()
+	home, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+	t.Setenv(agent.EnvModelURL, "")
+	t.Setenv(agent.EnvModelID, "")
+	// Вымышленные настройки OpenCode пользователя: два провайдера на заглушках.
+	cfgPath := filepath.Join(t.TempDir(), "opencode.jsonc")
+	os.WriteFile(cfgPath, []byte(`{
+  // провайдеры пользователя
+  "providers": {
+    "lab": {"name": "Лаборатория", "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {"baseURL": "`+work.URL+`", "apiKey": "test-secret-in-config"},
+      "models": {"stub-model": {"name": "Рабочая"}}},
+    "home": {"name": "Дом", "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {"baseURL": "`+home.URL+`"},
+      "models": {"stub-home": {"name": "Личная"}}},
+  },
+  "mcp": {"tracker": {"type": "remote", "url": "https://tracker.example.test/mcp"}},
+}`), 0o600)
+	user, err := agent.ReadUserConfig(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := openStore(t)
+	root, _ := os.MkdirTemp("", "da-models-")
+	defer os.RemoveAll(root)
+	ctx := context.Background()
+
+	lc := startLiveChat(t, st, root, work)
+	secrets := &memSecrets{}
+	svc := NewSettingsService(st, secrets, lc.backend, SystemClock(), func() (agent.UserConfig, error) { return user, nil }, false)
+
+	// Ключ провайдера из настроек OpenCode — в Связку ключей; OpenCode перезапускается.
+	if _, err := svc.SaveProviderKey(ctx, ProviderKeyInput{ID: "lab", Key: "test-key-lab"}); err != nil {
+		t.Fatal(err)
+	}
+	lc.waitReady()
+	models, err := svc.Models(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refs []string
+	for _, m := range models {
+		refs = append(refs, m.Ref)
+	}
+	if !contains(refs, "lab/stub-model") || !contains(refs, "home/stub-home") {
+		t.Fatalf("модели OpenCode: %v", refs)
+	}
+	// Встроенный каталог OpenCode доступен без сети.
+	catalog, err := svc.CatalogProviders(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, c := range catalog {
+		found = found || c.ID == "openai"
+	}
+	if !found || len(catalog) < 10 {
+		t.Fatalf("каталог: %d провайдеров, openai: %v", len(catalog), found)
+	}
+
+	if _, err := svc.SaveModels(ctx, ModelsInput{Work: "lab/stub-model", Personal: "home/stub-home"}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(1500 * time.Millisecond) // подписка на события открывается заново после перезапуска
+
+	workChat, err := lc.svc.Create(ctx, false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lc.svc.Send(ctx, workChat.ID, "Рабочий вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("рабочий ответ: %+v", d)
+	}
+	personalChat, err := lc.svc.Create(ctx, false, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lc.svc.Send(ctx, personalChat.ID, "Личный вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("личный ответ: %+v", d)
+	}
+
+	last := func(reqs []stubmodel.Request) stubmodel.Request {
+		if len(reqs) == 0 {
+			t.Fatal("заглушка не получила запросов")
+		}
+		return reqs[len(reqs)-1]
+	}
+	w, h := last(work.Requests()), last(home.Requests())
+	if w.Model != "stub-model" || w.APIKey != "test-key-lab" || w.LastText != "Рабочий вопрос" {
+		t.Fatalf("рабочая модель: %+v", w)
+	}
+	if h.Model != "stub-home" || h.LastText != "Личный вопрос" || h.APIKey == "test-secret-in-config" {
+		t.Fatalf("личная модель: %+v", h)
+	}
+	for _, r := range home.Requests() {
+		if strings.Contains(r.LastText, "Рабочий") {
+			t.Fatal("рабочий вопрос ушёл в личную модель")
+		}
 	}
 }

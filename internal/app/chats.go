@@ -28,15 +28,17 @@ type AgentBackend interface {
 	Client() (*agent.Client, error)
 	Status() agent.Status
 	Workspace() string
-	// Model — модель агента или nil, если она не настроена.
-	Model() *agent.ModelRef
+	// ModelFor — модель для рабочих или личных задач; nil — не выбрана.
+	ModelFor(personal bool) *agent.ModelRef
 }
 
 // ChatListItem — чат в списке.
 type ChatListItem struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	Kind      string `json:"kind"`
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	Kind  string `json:"kind"`
+	// Personal — личный чат: идёт в модель для личных задач, без рабочих данных.
+	Personal  bool   `json:"personal"`
 	UpdatedAt string `json:"updatedAt"`
 	// Preview — начало последнего ответа агента. Читается из OpenCode при
 	// показе и в базе приложения не хранится.
@@ -59,6 +61,7 @@ type ChatView struct {
 	ID        string `json:"id"`
 	Title     string `json:"title"`
 	Kind      string `json:"kind"`
+	Personal  bool   `json:"personal"`
 	CreatedAt string `json:"createdAt"`
 	// Context — подпись контекста, например «агенда на 24 ноября».
 	Context  string            `json:"context"`
@@ -134,20 +137,35 @@ func ChatStatusHandler(s *ChatsService) func(agent.Status) {
 	}
 }
 
-// unavailable объясняет, почему агенту сейчас нельзя написать.
-func (s *ChatsService) unavailable() string {
+// unavailable объясняет, почему агенту сейчас нельзя написать в рабочий
+// или личный чат.
+func (s *ChatsService) unavailable(personal bool) string {
 	if s.backend == nil {
 		return "Агент не подключён"
 	}
-	return unavailableText(s.backend)
+	return unavailableText(s.backend, personal)
 }
 
-func (s *ChatsService) client() (*agent.Client, error) {
-	if reason := s.unavailable(); reason != "" {
+// server — клиент OpenCode, чтобы читать переписку. Модель не нужна.
+func (s *ChatsService) server() (*agent.Client, error) {
+	if s.backend == nil {
+		return nil, errors.New("Агент не подключён")
+	}
+	if st := s.backend.Status(); st.State != agent.StateReady {
+		return nil, errors.New(serverUnavailable(st))
+	}
+	return s.backend.Client()
+}
+
+// clientFor — клиент OpenCode, чтобы писать агенту: нужна модель чата.
+func (s *ChatsService) clientFor(personal bool) (*agent.Client, error) {
+	if reason := s.unavailable(personal); reason != "" {
 		return nil, errors.New(reason)
 	}
 	return s.backend.Client()
 }
+
+func isPersonal(c store.Chat) bool { return c.Purpose == store.ChatPurposePersonal }
 
 func (s *ChatsService) isRunning(chatID string) bool {
 	s.mu.Lock()
@@ -180,6 +198,7 @@ func (s *ChatsService) List(ctx context.Context) ([]ChatListItem, error) {
 			ID:        c.ID,
 			Title:     c.Title,
 			Kind:      c.Kind,
+			Personal:  isPersonal(c),
 			UpdatedAt: s.clock.format(c.UpdatedAt),
 			Preview:   s.previews[c.ID],
 			Running:   s.running[c.ID],
@@ -191,7 +210,7 @@ func (s *ChatsService) List(ctx context.Context) ([]ChatListItem, error) {
 // fillPreviews читает из OpenCode начало последнего ответа у чатов, для
 // которых его ещё нет. Если OpenCode недоступен, список показывается без них.
 func (s *ChatsService) fillPreviews(ctx context.Context, chats []store.Chat) {
-	c, err := s.client()
+	c, err := s.server()
 	if err != nil {
 		return
 	}
@@ -261,11 +280,12 @@ func (s *ChatsService) Open(ctx context.Context, id string) (ChatView, error) {
 		ID:        chat.ID,
 		Title:     chat.Title,
 		Kind:      chat.Kind,
+		Personal:  isPersonal(chat),
 		CreatedAt: s.clock.format(chat.CreatedAt),
 		Running:   s.isRunning(chat.ID),
 		Messages:  []ChatMessageView{},
 	}
-	c, err := s.client()
+	c, err := s.server()
 	if err != nil {
 		view.Unavailable = err.Error()
 		return view, nil
@@ -276,7 +296,7 @@ func (s *ChatsService) Open(ctx context.Context, id string) (ChatView, error) {
 		return view, nil
 	}
 	view.Messages, view.Context = s.messageViews(msgs)
-	if reason := s.unavailable(); reason != "" {
+	if reason := s.unavailable(view.Personal); reason != "" {
 		view.Unavailable = reason
 	}
 	return view, nil
@@ -343,21 +363,30 @@ func (s *ChatsService) messageViews(msgs []agent.Message) ([]ChatMessageView, st
 }
 
 // Create создаёт чат. withAgenda — добавить в чат агенду на сегодня:
-// так открывается маленький чат с экрана «Сегодня».
-func (s *ChatsService) Create(ctx context.Context, withAgenda bool) (ChatView, error) {
-	c, err := s.client()
+// так открывается маленький чат с экрана «Сегодня». personal — личный чат:
+// он идёт в модель для личных задач, возможно облачную, поэтому агенду,
+// задачи и встречи не получает.
+func (s *ChatsService) Create(ctx context.Context, withAgenda, personal bool) (ChatView, error) {
+	if personal && withAgenda {
+		return ChatView{}, errors.New("личный чат не получает рабочих данных: агенду можно добавить только в рабочий")
+	}
+	c, err := s.clientFor(personal)
 	if err != nil {
 		return ChatView{}, err
 	}
 	sess, err := c.CreateSession(ctx, agent.SessionOptions{
 		Title:     DefaultChatTitle,
 		Directory: s.backend.Workspace(),
-		Model:     s.backend.Model(),
+		Model:     s.backend.ModelFor(personal),
 	})
 	if err != nil {
 		return ChatView{}, fmt.Errorf("новая сессия OpenCode: %w", err)
 	}
-	chat, err := s.store.CreateChat(ctx, store.Chat{SessionID: sess.ID, Title: DefaultChatTitle})
+	purpose := store.ChatPurposeWork
+	if personal {
+		purpose = store.ChatPurposePersonal
+	}
+	chat, err := s.store.CreateChat(ctx, store.Chat{SessionID: sess.ID, Title: DefaultChatTitle, Purpose: purpose})
 	if err != nil {
 		return ChatView{}, err
 	}
@@ -386,7 +415,8 @@ func (s *ChatsService) Send(ctx context.Context, id, text string) error {
 	if err != nil {
 		return userError(err)
 	}
-	c, err := s.client()
+	personal := isPersonal(chat)
+	c, err := s.clientFor(personal)
 	if err != nil {
 		return err
 	}
@@ -399,7 +429,8 @@ func (s *ChatsService) Send(ctx context.Context, id, text string) error {
 	s.mu.Unlock()
 
 	// Чат, начатый до смены модели в настройках, продолжается с новой.
-	if err := c.EnsureModel(ctx, chat.SessionID, s.backend.Model()); err != nil {
+	// Рабочий чат всегда идёт в модель для рабочих задач, то есть в селфхост.
+	if err := c.EnsureModel(ctx, chat.SessionID, s.backend.ModelFor(personal)); err != nil {
 		s.setRunning(chat.ID, false)
 		return fmt.Errorf("модель чата: %w", err)
 	}

@@ -57,6 +57,36 @@ func (m Model) Env() []string {
 // Ref — ссылка на модель для сессий OpenCode.
 func (m Model) Ref() *ModelRef { return &ModelRef{ID: m.ModelID, ProviderID: ProviderID} }
 
+// Setup — одна своя модель и для рабочих, и для личных задач.
+func (m Model) Setup() *Setup {
+	return &Setup{Options: agentprofile.Options{Provider: m.Provider()}, Env: m.Env(), Work: m.Ref()}
+}
+
+// Setup — модели агента: провайдеры для профиля OpenCode, ключи для его
+// процесса и выбранные модели для рабочих и личных задач.
+type Setup struct {
+	// Options — провайдеры и модель по умолчанию. Инструменты Manager не меняет.
+	Options agentprofile.Options
+	// Env — ключи провайдеров для процесса OpenCode, ИМЯ=значение.
+	Env []string
+	// Work — модель для рабочих задач, только селфхост. Nil — не выбрана.
+	Work *ModelRef
+	// Personal — модель для личных задач. Nil — та же, что для рабочих.
+	Personal *ModelRef
+}
+
+// String — модель в виде провайдер/модель.
+func (r ModelRef) String() string { return r.ProviderID + "/" + r.ID }
+
+// ParseModelRef разбирает «провайдер/модель». У модели внутри может быть «/».
+func ParseModelRef(v string) (*ModelRef, bool) {
+	provider, model, ok := strings.Cut(strings.TrimSpace(v), "/")
+	if !ok || provider == "" || model == "" {
+		return nil, false
+	}
+	return &ModelRef{ID: model, ProviderID: provider}, true
+}
+
 // ErrNoModel — модель не настроена.
 var ErrNoModel = errors.New("модель агента не настроена")
 

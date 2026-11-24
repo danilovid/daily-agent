@@ -3,6 +3,7 @@ import { ChatsService } from '../../bindings/daily-agent/internal/app';
 import type { ChatListItem, ChatView } from '../../bindings/daily-agent/internal/app';
 import { Conversation } from '../components/chat/Conversation';
 import { MoreIcon, PlusIcon } from '../components/Icons';
+import { Segmented } from '../components/Segmented';
 import { useData, useLoad } from '../lib/data';
 import { addDays, dayHeading, shortDate, timeOfDay, toDay } from '../lib/format';
 
@@ -37,6 +38,8 @@ export function ChatsScreen({ selectedId, onSelect }: Props) {
   const { refresh, showError } = useData();
   const { data } = useLoad(() => ChatsService.List(), []);
   const [view, setView] = useState<ChatView | null>(null);
+  // Новый чат, ещё без сообщений: рабочий или личный.
+  const [newPersonal, setNewPersonal] = useState(false);
   const today = toDay(new Date());
   const chats = data ?? [];
 
@@ -45,17 +48,19 @@ export function ChatsScreen({ selectedId, onSelect }: Props) {
   }, [selectedId]);
 
   const create = useCallback(async () => {
-    const v = await ChatsService.Create(false);
+    const v = await ChatsService.Create(false, newPersonal);
     onSelect(v.id);
     refresh();
     return v.id;
-  }, [onSelect, refresh]);
+  }, [onSelect, refresh, newPersonal]);
 
   const onView = useCallback((v: ChatView) => setView(v), []);
-  const title = view?.title ?? 'Новый чат';
+  const title = view?.title ?? (newPersonal ? 'Новый личный чат' : 'Новый чат');
+  const personal = selectedId ? !!view?.personal : newPersonal;
   const meta = view
     ? [
       `${dayHeading(toDay(new Date(view.createdAt)), today).split(',')[0]}, ${timeOfDay(view.createdAt)}`,
+      view.personal ? 'личный чат, без рабочих данных' : '',
       view.context ? `контекст: ${view.context}` : '',
     ].filter(Boolean).join(' · ')
     : 'Задайте вопрос, и чат появится в списке';
@@ -83,6 +88,7 @@ export function ChatsScreen({ selectedId, onSelect }: Props) {
                 >
                   <span className="chat-item__top">
                     <span className="chat-item__title">{c.title}</span>
+                    {c.personal && <span className="chat-item__badge">личный</span>}
                     <span className="chat-item__time">{c.running ? 'отвечает…' : itemTime(c, today)}</span>
                   </span>
                   {c.preview && <span className="chat-item__preview">{c.preview}</span>}
@@ -99,6 +105,14 @@ export function ChatsScreen({ selectedId, onSelect }: Props) {
             <h3 className="chat-view__title">{title}</h3>
             <p className="chat-view__meta">{meta}</p>
           </div>
+          {!selectedId && (
+            <Segmented
+              label="Вид нового чата"
+              value={newPersonal ? 'personal' : 'work'}
+              options={[{ value: 'work', label: 'Рабочий' }, { value: 'personal', label: 'Личный' }]}
+              onChange={(v) => setNewPersonal(v === 'personal')}
+            />
+          )}
           {view && (
             <ChatMenu
               key={view.id}
@@ -120,7 +134,10 @@ export function ChatsScreen({ selectedId, onSelect }: Props) {
           onCreate={create}
           onView={onView}
           onDone={refresh}
-          emptyText="Спросите агента о чём угодно. Переписка сохранится в этом списке."
+          personal={personal}
+          emptyText={personal
+            ? 'Личный чат: агент не видит ваших встреч и задач, а ответить может облачная модель.'
+            : 'Спросите агента о чём угодно. Переписка сохранится в этом списке.'}
         />
       </section>
     </>

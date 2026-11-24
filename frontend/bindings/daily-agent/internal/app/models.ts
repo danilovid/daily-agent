@@ -6,7 +6,33 @@
  */
 export interface AgentSettingsView {
     "status": AgentStatusView;
+
+    /**
+     * Model — своя модель по адресу.
+     */
     "model": ModelSettingsView;
+
+    /**
+     * Work — модель для рабочих задач, провайдер/модель. Пусто — не выбрана.
+     */
+    "work": string;
+
+    /**
+     * Personal — модель для личных задач. Пусто — та же, что для рабочих.
+     */
+    "personal": string;
+    "providers": ProviderView[] | null;
+
+    /**
+     * UserConfig — откуда взяты провайдеры OpenCode, например
+     * ~/.config/opencode/opencode.json. Пусто — настроек OpenCode нет.
+     */
+    "userConfig": string;
+
+    /**
+     * UserSkipped — провайдеры из настроек OpenCode, которые не удалось перенести.
+     */
+    "userSkipped": number;
 
     /**
      * Binary — путь к программе opencode, когда она найдена.
@@ -20,7 +46,7 @@ export interface AgentSettingsView {
     "workspace": string;
 
     /**
-     * Note — пояснение к модели, например что сейчас работает заглушка.
+     * Note — пояснения: работает заглушка, модель недоступна и так далее.
      */
     "note": string;
 }
@@ -41,7 +67,20 @@ export interface AgentStatusView {
     "version": string;
     "error": string;
     "modelConfigured": boolean;
+
+    /**
+     * PersonalConfigured — есть модель для личных задач.
+     */
+    "personalConfigured": boolean;
     "restarts": number;
+}
+
+/**
+ * CatalogOptionView — облачный провайдер из каталога, который можно подключить ключом.
+ */
+export interface CatalogOptionView {
+    "id": string;
+    "name": string;
 }
 
 /**
@@ -71,6 +110,11 @@ export interface ChatListItem {
     "id": string;
     "title": string;
     "kind": string;
+
+    /**
+     * Personal — личный чат: идёт в модель для личных задач, без рабочих данных.
+     */
+    "personal": boolean;
     "updatedAt": string;
 
     /**
@@ -103,6 +147,7 @@ export interface ChatView {
     "id": string;
     "title": string;
     "kind": string;
+    "personal": boolean;
     "createdAt": string;
 
     /**
@@ -119,7 +164,7 @@ export interface ChatView {
 }
 
 /**
- * ConnectionCheck — итог проверки связи с OpenCode.
+ * ConnectionCheck — итог проверки связи с OpenCode или моделью.
  */
 export interface ConnectionCheck {
     "ok": boolean;
@@ -221,7 +266,22 @@ export interface MeetingsView {
 }
 
 /**
- * ModelSettingsInput — новые настройки модели из окна.
+ * ModelOptionView — модель в списке выбора.
+ */
+export interface ModelOptionView {
+    "ref": string;
+    "name": string;
+    "providerId": string;
+    "providerName": string;
+
+    /**
+     * Selfhost — модель можно выбрать для рабочих задач.
+     */
+    "selfhost": boolean;
+}
+
+/**
+ * ModelSettingsInput — своя модель по адресу из окна.
  */
 export interface ModelSettingsInput {
     "url": string;
@@ -239,7 +299,7 @@ export interface ModelSettingsInput {
 }
 
 /**
- * ModelSettingsView — модель агента для окна. Ключ в окно не уходит, только
+ * ModelSettingsView — своя модель по адресу. Ключ в окно не уходит, только
  * признак, что он сохранён.
  */
 export interface ModelSettingsView {
@@ -251,6 +311,52 @@ export interface ModelSettingsView {
      * Source: settings, env, stub или none.
      */
     "source": string;
+}
+
+/**
+ * ModelsInput — выбор моделей.
+ */
+export interface ModelsInput {
+    /**
+     * Work — модель для рабочих задач, только селфхост. Пусто — не выбрана.
+     */
+    "work": string;
+
+    /**
+     * Personal — модель для личных задач. Пусто — та же, что для рабочих.
+     */
+    "personal": string;
+}
+
+/**
+ * ProviderKeyInput — ключ провайдера: из каталога или из настроек OpenCode.
+ */
+export interface ProviderKeyInput {
+    "id": string;
+    "key": string;
+}
+
+/**
+ * ProviderView — провайдер модели в настройках.
+ */
+export interface ProviderView {
+    "id": string;
+    "name": string;
+
+    /**
+     * Source: own — своя модель по адресу, opencode — из настроек OpenCode,
+     * catalog — облачный провайдер из каталога.
+     */
+    "source": string;
+    "selfhost": boolean;
+    "keySaved": boolean;
+
+    /**
+     * Dropped — сколько полей с ключами и токенами не перенесено из настроек
+     * OpenCode. Тогда ключ нужно сохранить здесь.
+     */
+    "dropped": number;
+    "models": number;
 }
 
 /**

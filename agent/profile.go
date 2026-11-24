@@ -10,9 +10,13 @@
 //     добавляются явно, по одному, после этого правила.
 //
 // Политику experimental.policies с действием permission OpenCode 2.0.28
-// отбрасывает как неверную, поэтому политика задаёт только провайдера модели.
+// отбрасывает как неверную, поэтому политика задаёт только провайдеров модели:
+// пользоваться можно лишь теми, что подключил пользователь.
 //
-// Ядро дописывает к базовым настройкам провайдера и модель и кладёт результат
+// Каталог провайдеров встроен в OpenCode и из сети не обновляется: ядро
+// запускает OpenCode с OPENCODE_DISABLE_MODELS_FETCH=1.
+//
+// Ядро дописывает к базовым настройкам провайдеров и модель и кладёт результат
 // в отдельную папку настроек OpenCode, не трогая обычную установку.
 package agentprofile
 
@@ -22,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -59,9 +64,13 @@ type Provider struct {
 }
 
 var (
-	idPattern   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
-	toolPattern = regexp.MustCompile(`^[A-Za-z0-9_]+\*?$`)
+	idPattern       = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,40}$`)
+	providerPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+	toolPattern     = regexp.MustCompile(`^[A-Za-z0-9_]+\*?$`)
 )
+
+// ValidProviderID — так может называться провайдер в настройках OpenCode.
+func ValidProviderID(id string) bool { return providerPattern.MatchString(id) }
 
 func (p Provider) validate() error {
 	if !idPattern.MatchString(p.ID) {
@@ -78,9 +87,18 @@ func (p Provider) validate() error {
 
 // Options — то, что ядро добавляет к базовым настройкам.
 type Options struct {
-	// Provider — модель агента. Nil — модель не настроена: OpenCode
-	// запустится, но отвечать не сможет.
+	// Provider — своя модель по адресу (селфхост-API). Nil — нет.
 	Provider *Provider
+	// Imported — провайдеры из настроек OpenCode пользователя, уже без
+	// секретов: раздел providers по идентификаторам.
+	Imported map[string]map[string]any
+	// Catalog — провайдеры встроенного каталога OpenCode, для которых
+	// сохранён ключ, например openai или anthropic.
+	Catalog []string
+	// Default — модель по умолчанию в виде провайдер/модель. Пусто — модель
+	// своего провайдера, если он есть. Без модели OpenCode запустится, но
+	// отвечать не сможет.
+	Default string
 	// AllowedTools — явный список разрешённых инструментов вида
 	// <сервер>_<инструмент> или <сервер>_*. Пока пустой.
 	AllowedTools []string
@@ -111,9 +129,27 @@ func Render(opts Options) ([]byte, error) {
 		cfg["permissions"] = append(cfg["permissions"].([]any), allow)
 	}
 
-	// Пользоваться можно только своим провайдером. Любой другой, найденный
-	// в каталоге или в окружении, OpenCode не покажет.
+	// Пользоваться можно только подключёнными провайдерами. Любой другой,
+	// найденный в каталоге или в окружении, OpenCode не покажет.
 	policies = append(policies, map[string]any{"action": "provider.use", "resource": "*", "effect": "deny"})
+	providers := map[string]any{}
+	var allowed []string
+	for _, id := range sortedKeys(opts.Imported) {
+		if !providerPattern.MatchString(id) || id == ownProviderID(opts.Provider) {
+			return nil, fmt.Errorf("провайдер %q из настроек OpenCode: неверный идентификатор", id)
+		}
+		providers[id] = opts.Imported[id]
+		allowed = append(allowed, id)
+	}
+	for _, id := range opts.Catalog {
+		if !providerPattern.MatchString(id) {
+			return nil, fmt.Errorf("провайдер каталога %q: неверный идентификатор", id)
+		}
+		if _, dup := providers[id]; !dup {
+			allowed = append(allowed, id)
+		}
+	}
+	model := opts.Default
 	if p := opts.Provider; p != nil {
 		if err := p.validate(); err != nil {
 			return nil, err
@@ -131,10 +167,25 @@ func Render(opts Options) ([]byte, error) {
 		if p.KeyEnv != "" {
 			provider["env"] = []string{p.KeyEnv}
 		}
-		cfg["providers"] = map[string]any{p.ID: provider}
-		cfg["model"] = p.ID + "/" + p.ModelID
-		daily["model"] = p.ID + "/" + p.ModelID
-		policies = append(policies, map[string]any{"action": "provider.use", "resource": p.ID, "effect": "allow"})
+		providers[p.ID] = provider
+		allowed = append(allowed, p.ID)
+		if model == "" {
+			model = p.ID + "/" + p.ModelID
+		}
+	}
+	if model != "" {
+		providerID, modelID, ok := strings.Cut(model, "/")
+		if !ok || modelID == "" || !contains(allowed, providerID) {
+			return nil, fmt.Errorf("модель %q: нет такого подключённого провайдера", model)
+		}
+		cfg["model"] = model
+		daily["model"] = model
+	}
+	if len(providers) > 0 {
+		cfg["providers"] = providers
+	}
+	for _, id := range allowed {
+		policies = append(policies, map[string]any{"action": "provider.use", "resource": id, "effect": "allow"})
 	}
 	experimental["policies"] = policies
 
@@ -143,4 +194,29 @@ func Render(opts Options) ([]byte, error) {
 		return nil, err
 	}
 	return append(out, '\n'), nil
+}
+
+func ownProviderID(p *Provider) string {
+	if p == nil {
+		return ""
+	}
+	return p.ID
+}
+
+func sortedKeys(m map[string]map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func contains(list []string, v string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

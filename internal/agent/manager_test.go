@@ -2,6 +2,8 @@ package agent
 
 import (
 	"context"
+
+	agentprofile "daily-agent/agent"
 	"io"
 	"net/http"
 	"os"
@@ -19,6 +21,10 @@ func testManager(t *testing.T, model *Model) (*Manager, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { os.RemoveAll(root) })
+	var setup *Setup
+	if model != nil {
+		setup = model.Setup()
+	}
 	m := NewManager(Config{
 		Profile:     Profile{Root: root},
 		Binary:      os.Args[0],
@@ -27,7 +33,7 @@ func testManager(t *testing.T, model *Model) (*Manager, string) {
 		StopTimeout: 2 * time.Second,
 		StaleName:   filepath.Base(os.Args[0]),
 		Logf:        t.Logf,
-	}, model)
+	}, setup)
 	t.Cleanup(m.Stop)
 	return m, root
 }
@@ -166,4 +172,52 @@ func TestManagerModelBeforeStart(t *testing.T) {
 	if key := modelKey(t, m); key != "test-key-2" {
 		t.Fatalf("ключ: %q", key)
 	}
+}
+
+func TestManagerModelChoiceWithoutRestart(t *testing.T) {
+	m, _ := testManager(t, nil)
+	lab := map[string]map[string]any{"lab": {
+		"package":  "@opencode/ai/providers/openai-compatible",
+		"settings": map[string]any{"baseURL": "http://127.0.0.1:9/v1"},
+		"models":   map[string]any{"small": map[string]any{}, "big": map[string]any{}},
+	}}
+	setup := &Setup{
+		Options: agentprofileOptions(lab, "openai"),
+		Env:     []string{"OPENAI_API_KEY=test-key-cloud"},
+		Work:    &ModelRef{ID: "small", ProviderID: "lab"},
+	}
+	m.SetSetup(setup)
+	m.Start(context.Background())
+	first := managerReady(t, m)
+	if ref := m.ModelFor(true); ref == nil || ref.String() != "lab/small" {
+		t.Fatalf("личная модель без своей — та же, что рабочая: %+v", ref)
+	}
+	if st := m.Status(); !st.ModelConfigured || !st.PersonalConfigured {
+		t.Fatalf("состояние: %+v", st)
+	}
+
+	// Другой выбор из тех же провайдеров — без перезапуска.
+	m.SetSetup(&Setup{Options: setup.Options, Env: setup.Env, Work: &ModelRef{ID: "big", ProviderID: "lab"}, Personal: &ModelRef{ID: "gpt", ProviderID: "openai"}})
+	if info := managerReady(t, m); info.PID != first.PID {
+		t.Fatalf("смена выбора модели перезапустила сервер: %d → %d", first.PID, info.PID)
+	}
+	if m.Model().String() != "lab/big" || m.ModelFor(true).String() != "openai/gpt" {
+		t.Fatalf("модели: %v %v", m.Model(), m.ModelFor(true))
+	}
+
+	// Новый ключ — перезапуск.
+	m.SetSetup(&Setup{Options: setup.Options, Env: []string{"OPENAI_API_KEY=test-key-other"}, Work: setup.Work})
+	if info := managerReady(t, m); info.PID == first.PID {
+		t.Fatal("новый ключ должен перезапустить сервер")
+	}
+
+	// Без рабочей модели личная тоже не выбрана.
+	m.SetSetup(&Setup{Options: setup.Options, Env: []string{"OPENAI_API_KEY=test-key-other"}})
+	if st := m.Status(); st.ModelConfigured || st.PersonalConfigured {
+		t.Fatalf("без моделей: %+v", st)
+	}
+}
+
+func agentprofileOptions(imported map[string]map[string]any, catalog ...string) agentprofile.Options {
+	return agentprofile.Options{Imported: imported, Catalog: catalog}
 }

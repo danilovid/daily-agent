@@ -50,9 +50,9 @@ tasks:
       - go test -tags integration ./internal/agent/ ./internal/app/
 
   agent:check:
-    summary: Проверка связи с агентом, печатает только цифры. Пример — wails3 task agent:check STUB=1 или N=10
+    summary: Проверка связи с агентом, печатает только цифры. Пример — wails3 task agent:check STUB=1, N=10 или PERSONAL=1
     cmds:
-      - go run ./cmd/agentcheck {{if .STUB}}-stub{{end}} {{if .N}}-n {{.N}}{{end}}
+      - go run ./cmd/agentcheck {{if .STUB}}-stub{{end}} {{if .N}}-n {{.N}}{{end}} {{if .PERSONAL}}-personal{{end}}
 
   stub:model:
     summary: Заглушка модели на 127.0.0.1 для проверки экрана настроек. Пример — wails3 task stub:model [PORT=8765]

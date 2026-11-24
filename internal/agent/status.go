@@ -17,9 +17,12 @@ type Status struct {
 	Version string    `json:"version"`
 	Since   time.Time `json:"since"`
 	Error   string    `json:"error"`
-	// ModelConfigured — настроена ли модель. Без неё сервер работает,
-	// но агент не ответит.
+	// ModelConfigured — выбрана ли модель для рабочих задач. Без неё сервер
+	// работает, но в рабочем чате агент не ответит.
 	ModelConfigured bool `json:"modelConfigured"`
+	// PersonalConfigured — есть ли модель для личных задач: своя или та же,
+	// что для рабочих.
+	PersonalConfigured bool `json:"personalConfigured"`
 	// Restarts — сколько раз сервер перезапускался после падения.
 	Restarts int `json:"restarts"`
 	// Binary — путь к программе opencode, когда она найдена.

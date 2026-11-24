@@ -10,8 +10,19 @@ import (
 
 // Ключи настроек приложения. Ключи и токены сюда не попадают: они в Связке ключей.
 const (
-	SettingModelURL = "agent.model.url" // адрес селфхост-API модели
-	SettingModelID  = "agent.model.id"  // идентификатор модели
+	SettingModelURL = "agent.model.url" // адрес своей модели (селфхост-API)
+	SettingModelID  = "agent.model.id"  // идентификатор своей модели
+	// SettingWorkModel — модель для рабочих задач, провайдер/модель. Пусто —
+	// своя модель, если она задана; «-» — не выбрана.
+	SettingWorkModel = "agent.work.model"
+	// SettingPersonalModel — модель для личных задач. Пусто — та же, что для рабочих.
+	SettingPersonalModel = "agent.personal.model"
+	// SettingCatalog — подключённые облачные провайдеры каталога OpenCode,
+	// JSON: идентификатор, название, переменная для ключа. Сами ключи — в Связке ключей.
+	SettingCatalog = "agent.catalog"
+	// SettingProviderKeys — провайдеры из настроек OpenCode пользователя,
+	// чьи ключи сохранены в Связке ключей, JSON-список идентификаторов.
+	SettingProviderKeys = "agent.keys"
 )
 
 // Settings читает настройки, имена которых начинаются с prefix.

@@ -4,11 +4,11 @@
 // выводится и никуда не передаётся.
 //
 //	go run ./cmd/agentcheck -stub        с заглушкой модели, без сети
-//	go run ./cmd/agentcheck -n 10        с настоящей моделью (запускает автор)
+//	go run ./cmd/agentcheck -n 10        с моделью для рабочих задач (запускает автор)
+//	go run ./cmd/agentcheck -personal    с моделью для личных задач
 //
-// Настоящая модель берётся из настроек приложения («Настройки» → «Агент»),
-// а без них — из DAILY_AGENT_MODEL_URL и DAILY_AGENT_MODEL_ID. Ключ — из
-// Связки ключей (служба «Daily Agent», запись «model-api-key»).
+// Настоящие модели берутся из настроек приложения («Настройки» → «Агент»)
+// так же, как в приложении. Ключи — из Связки ключей (служба «Daily Agent»).
 package main
 
 import (
@@ -19,7 +19,6 @@ import (
 	"os"
 	"time"
 
-	agentprofile "daily-agent/agent"
 	"daily-agent/internal/agent"
 	"daily-agent/internal/agent/stubmodel"
 	"daily-agent/internal/app"
@@ -39,26 +38,27 @@ func run() error {
 	useStub := flag.Bool("stub", false, "заглушка модели вместо настоящей")
 	n := flag.Int("n", 1, "сколько запросов отправить")
 	timeout := flag.Duration("timeout", 2*time.Minute, "предельное время одного ответа")
+	personal := flag.Bool("personal", false, "проверить модель для личных задач, а не для рабочих")
 	flag.Parse()
 	if *n < 1 || *n > 100 {
 		return errors.New("-n должно быть от 1 до 100")
 	}
 
 	ctx := context.Background()
-	var model agent.Model
+	var setup *agent.Setup
 	if *useStub {
 		stub, err := stubmodel.Start()
 		if err != nil {
 			return err
 		}
 		defer stub.Close()
-		model = agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
+		setup = agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}.Setup()
 	} else {
-		m, err := savedModel(ctx)
+		s, err := savedSetup(ctx)
 		if err != nil {
 			return err
 		}
-		model = *m
+		setup = s
 	}
 
 	// Отдельная временная папка: проверка не мешает запущенному приложению.
@@ -70,11 +70,11 @@ func run() error {
 	profile := agent.Profile{Root: root}
 
 	began := time.Now()
-	sup := agent.NewSupervisor(agent.Config{
-		Profile:  profile,
-		Options:  agentprofile.Options{Provider: model.Provider()},
-		ExtraEnv: model.Env(),
-	})
+	sup := agent.NewManager(agent.Config{Profile: profile}, setup)
+	model := sup.ModelFor(*personal)
+	if model == nil {
+		return errors.New("модель не выбрана: задайте её в приложении («Настройки» → «Агент») или запустите с -stub")
+	}
 	sup.Start(ctx)
 	defer sup.Stop()
 	readyCtx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -95,7 +95,7 @@ func run() error {
 		reply, err := client.Ask(askCtx, agent.SessionOptions{
 			Title:     "Проверка связи",
 			Directory: profile.Workspace(),
-			Model:     &agent.ModelRef{ID: model.ModelID, ProviderID: agent.ProviderID},
+			Model:     model,
 		}, prompt)
 		cancel()
 		passed := err == nil && reply.Text != ""
@@ -117,9 +117,10 @@ func run() error {
 	return nil
 }
 
-// savedModel берёт модель так же, как приложение: из его настроек, а без них
-// из переменных окружения. Из базы читаются только настройки модели.
-func savedModel(ctx context.Context) (*agent.Model, error) {
+// savedSetup берёт модели так же, как приложение: из его настроек, провайдеров
+// из настроек OpenCode пользователя и Связки ключей. Из базы читаются только
+// настройки моделей.
+func savedSetup(ctx context.Context) (*agent.Setup, error) {
 	path, err := store.DefaultPath()
 	if err != nil {
 		return nil, err
@@ -129,14 +130,11 @@ func savedModel(ctx context.Context) (*agent.Model, error) {
 		return nil, err
 	}
 	defer db.Close()
-	m, _, err := app.LoadModel(ctx, db, agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)})
+	user, err := agent.LoadUserConfig()
 	if err != nil {
 		return nil, err
 	}
-	if m == nil {
-		return nil, errors.New("модель не настроена: задайте её в приложении («Настройки» → «Агент») или запустите с -stub")
-	}
-	return m, nil
+	return app.LoadSetup(ctx, db, agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)}, user)
 }
 
 func verdict(ok bool) string {

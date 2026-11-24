@@ -203,3 +203,35 @@ func TestEnsureModel(t *testing.T) {
 		t.Fatalf("сессия без модели: %v %v", err, switched)
 	}
 }
+
+func TestListModelsAndIntegrations(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/model", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"location":{},"data":[
+			{"id":"big","providerID":"lab","name":"Big","status":"active","enabled":true},
+			{"id":"off","providerID":"lab","name":"Off","enabled":false},
+			{"id":"gpt","providerID":"openai","name":"GPT"}]}`)
+	})
+	mux.HandleFunc("GET /api/integration", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"location":{},"data":[
+			{"id":"openai","name":"OpenAI","methods":[{"type":"key"},{"type":"env","names":["OPENAI_API_KEY"]},{"type":"oauth"}],"connections":[]},
+			{"id":"copilot","name":"Copilot","methods":[{"type":"oauth"}],"connections":[]}]}`)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := NewClient(srv.URL, "x")
+	models, err := c.ListModels(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(models) != 2 || models[0].Ref().String() != "lab/big" || models[1].Name != "GPT" {
+		t.Fatalf("модели: %+v", models)
+	}
+	ints, err := c.Integrations(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ints) != 2 || strings.Join(ints[0].KeyEnv, ",") != "OPENAI_API_KEY" || len(ints[1].KeyEnv) != 0 {
+		t.Fatalf("каталог: %+v", ints)
+	}
+}
