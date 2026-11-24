@@ -3,14 +3,12 @@ package main
 import (
 	"context"
 	"embed"
-	"errors"
 	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
-	agentprofile "daily-agent/agent"
 	"daily-agent/internal/agent"
 	"daily-agent/internal/agent/stubmodel"
 	"daily-agent/internal/app"
@@ -48,8 +46,9 @@ func main() {
 	openURL := func(u string) error { return application.Get().Browser.OpenURL(u) }
 
 	// OpenCode агента живёт рядом с базой приложения, в своих папках.
-	backend, stopModel := newAgent(ctx, filepath.Join(filepath.Dir(dbPath), "agent"))
-	supervisor := backend.Supervisor
+	keychain := agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)}
+	stub := os.Getenv(EnvStubModel) == "1"
+	backend, stopModel := newAgent(ctx, filepath.Join(filepath.Dir(dbPath), "agent"), db, keychain, stub)
 	defer stopModel()
 
 	// Окно ещё не создано, поэтому события чата уходят через переменную.
@@ -73,8 +72,9 @@ func main() {
 			application.NewService(app.NewTagsService(db)),
 			application.NewService(app.NewSearchService(db, clock)),
 			application.NewService(app.NewLinksService(db, openURL)),
-			application.NewService(app.NewAgentService(supervisor.Status, clock)),
+			application.NewService(app.NewAgentService(backend.Status, clock)),
 			application.NewService(chats),
+			application.NewService(app.NewSettingsService(db, keychain, backend, clock, stub)),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
@@ -86,18 +86,20 @@ func main() {
 		// выполняются. OpenCode останавливается здесь: выход ждёт этой функции.
 		OnShutdown: func() {
 			stopEvents()
-			supervisor.Stop()
+			backend.Stop()
 			stopModel()
 		},
 	})
 
-	supervisor.OnChange(func(st agent.Status) {
+	backend.OnChange(func(st agent.Status) {
 		wails.Event.Emit(app.AgentStatusEvent, app.AgentStatusFrom(st, clock))
 	})
+	// При перезапуске OpenCode, например после смены модели, ответы обрываются.
+	backend.OnChange(app.ChatStatusHandler(chats))
 	emitChat = func(e app.ChatEvent) { wails.Event.Emit(app.ChatEventName, e) }
 	// Приложение работает и без агента: свои задачи и встречи не ждут OpenCode.
-	supervisor.Start(ctx)
-	defer supervisor.Stop()
+	backend.Start(ctx)
+	defer backend.Stop()
 	// Ответы агента приходят потоком событий OpenCode.
 	go agent.RunEvents(eventsCtx, backend.Client, app.ChatEventHandler(chats))
 	defer stopEvents()
@@ -121,37 +123,32 @@ func main() {
 	})
 
 	if err := wails.Run(); err != nil {
-		supervisor.Stop()
+		backend.Stop()
 		db.Close()
 		log.Fatal(err)
 	}
 }
 
-// newAgent готовит надзор за OpenCode. Модель: заглушка при
-// DAILY_AGENT_STUB_MODEL=1, иначе адрес и модель из окружения и ключ из
+// newAgent готовит агента. Модель: заглушка при DAILY_AGENT_STUB_MODEL=1,
+// иначе настройки приложения, а без них — переменные окружения. Ключ — из
 // Связки ключей. Без модели OpenCode запускается, но агент не ответит.
-func newAgent(ctx context.Context, root string) (*agent.Backend, func()) {
-	profile := agent.Profile{Root: root}
-	cfg := agent.Config{Profile: profile, Logf: log.Printf}
-	var ref *agent.ModelRef
+func newAgent(ctx context.Context, root string, db *store.Store, keychain agent.Keychain, stub bool) (*agent.Manager, func()) {
+	cfg := agent.Config{Profile: agent.Profile{Root: root}, Logf: log.Printf}
+	var model *agent.Model
 	stop := func() {}
-	if os.Getenv(EnvStubModel) == "1" {
-		stub, err := stubmodel.Start()
+	if stub {
+		srv, err := stubmodel.Start()
 		if err != nil {
 			log.Printf("заглушка модели: %v", err)
 		} else {
-			model := agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
-			cfg.Options = agentprofile.Options{Provider: model.Provider()}
-			ref = model.Ref()
-			stop = func() { stub.Close() }
+			model = &agent.Model{BaseURL: srv.URL, ModelID: stubmodel.ModelID}
+			stop = func() { srv.Close() }
 			log.Printf("агент работает с заглушкой модели")
 		}
-	} else if model, err := agent.ModelFromEnv(ctx); err == nil {
-		cfg.Options = agentprofile.Options{Provider: model.Provider()}
-		cfg.ExtraEnv = model.Env()
-		ref = model.Ref()
-	} else if !errors.Is(err, agent.ErrNoModel) {
+	} else if m, _, err := app.LoadModel(ctx, db, keychain); err != nil {
 		log.Printf("модель агента: %v", err)
+	} else {
+		model = m
 	}
-	return &agent.Backend{Supervisor: agent.NewSupervisor(cfg), Profile: profile, ModelRef: ref}, stop
+	return agent.NewManager(cfg, model), stop
 }

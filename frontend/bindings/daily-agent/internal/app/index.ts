@@ -6,6 +6,7 @@ import * as ChatsService from "./chatsservice.js";
 import * as LinksService from "./linksservice.js";
 import * as MeetingsService from "./meetingsservice.js";
 import * as SearchService from "./searchservice.js";
+import * as SettingsService from "./settingsservice.js";
 import * as SidebarService from "./sidebarservice.js";
 import * as TagsService from "./tagsservice.js";
 import * as TasksService from "./tasksservice.js";
@@ -16,6 +17,7 @@ export {
     LinksService,
     MeetingsService,
     SearchService,
+    SettingsService,
     SidebarService,
     TagsService,
     TasksService,
@@ -23,11 +25,13 @@ export {
 };
 
 export type {
+    AgentSettingsView,
     AgentStatusView,
     ChatEvent,
     ChatListItem,
     ChatMessageView,
     ChatView,
+    ConnectionCheck,
     LinkInput,
     LinkView,
     MeetingDayView,
@@ -35,6 +39,8 @@ export type {
     MeetingInput,
     MeetingView,
     MeetingsView,
+    ModelSettingsInput,
+    ModelSettingsView,
     RepeatOption,
     SearchView,
     SidebarCounts,

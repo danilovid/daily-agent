@@ -6,6 +6,7 @@ import './styles/app.css';
 import './styles/screens.css';
 import './styles/cards.css';
 import './styles/chat.css';
+import './styles/settings.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -148,6 +148,11 @@
   --meeting-list-time-width: 60px;
   --segment-height: 40px;
 
+  /* Размеры: настройки */
+  --settings-tab-height: 44px;
+  --settings-row-height: 52px;
+  --settings-value-max: 340px;
+
   /* Размеры: карточки */
   --modal-width: 560px;
   --modal-width-sm: 360px;

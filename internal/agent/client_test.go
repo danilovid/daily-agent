@@ -161,3 +161,45 @@ func TestStubModelScriptsToolCalls(t *testing.T) {
 		t.Errorf("запросы: %+v", reqs)
 	}
 }
+
+func TestEnsureModel(t *testing.T) {
+	current := `{"id":"old-model","providerID":"daily-model"}`
+	var switched []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/session/{id}", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"data":{"id":"`+r.PathValue("id")+`","model":`+current+`}}`)
+	})
+	mux.HandleFunc("POST /api/session/{id}/model", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model ModelRef `json:"model"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		switched = append(switched, r.PathValue("id")+":"+body.Model.ProviderID+"/"+body.Model.ID)
+		raw, _ := json.Marshal(body.Model)
+		current = string(raw)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := NewClient(srv.URL, "x")
+	ctx := context.Background()
+
+	if err := c.EnsureModel(ctx, "ses_1", nil); err != nil || len(switched) != 0 {
+		t.Fatalf("без модели: %v %v", err, switched)
+	}
+	want := &ModelRef{ID: "new-model", ProviderID: ProviderID}
+	if err := c.EnsureModel(ctx, "ses_1", want); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.EnsureModel(ctx, "ses_1", want); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(switched, ",") != "ses_1:daily-model/new-model" {
+		t.Fatalf("переключения: %v", switched)
+	}
+	// У сессии без модели она ставится.
+	current = `null`
+	if err := c.EnsureModel(ctx, "ses_2", want); err != nil || len(switched) != 2 {
+		t.Fatalf("сессия без модели: %v %v", err, switched)
+	}
+}

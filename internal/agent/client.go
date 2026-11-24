@@ -119,9 +119,41 @@ type SessionOptions struct {
 
 // Session — сессия OpenCode.
 type Session struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Agent string `json:"agent"`
+	ID    string    `json:"id"`
+	Title string    `json:"title"`
+	Agent string    `json:"agent"`
+	Model *ModelRef `json:"model"`
+}
+
+// GetSession читает сессию.
+func (c *Client) GetSession(ctx context.Context, sessionID string) (Session, error) {
+	var resp struct {
+		Data Session `json:"data"`
+	}
+	err := c.do(ctx, http.MethodGet, "/api/session/"+url.PathEscape(sessionID), nil, &resp)
+	return resp.Data, err
+}
+
+// SwitchModel меняет модель сессии. Следующий ответ агента придёт от неё.
+func (c *Client) SwitchModel(ctx context.Context, sessionID string, model ModelRef) error {
+	return c.do(ctx, http.MethodPost, "/api/session/"+url.PathEscape(sessionID)+"/model",
+		map[string]any{"model": model}, nil)
+}
+
+// EnsureModel переключает сессию на модель, если у неё другая. Так чат,
+// начатый до смены модели в настройках, продолжается с новой.
+func (c *Client) EnsureModel(ctx context.Context, sessionID string, model *ModelRef) error {
+	if model == nil {
+		return nil
+	}
+	sess, err := c.GetSession(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	if sess.Model != nil && *sess.Model == *model {
+		return nil
+	}
+	return c.SwitchModel(ctx, sessionID, *model)
 }
 
 // CreateSession создаёт сессию агента приложения. Права сессии запрещают

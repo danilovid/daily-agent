@@ -63,6 +63,14 @@ func fakeOpenCode(mode string) {
 		}
 		json.NewEncoder(w).Encode(map[string]any{"version": version, "pid": os.Getpid()})
 	})
+	// Ключ модели, который получил процесс. Только в поддельном сервере.
+	http.HandleFunc("/test/model-key", func(w http.ResponseWriter, r *http.Request) {
+		if _, p, ok := r.BasicAuth(); !ok || p != password {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, os.Getenv(ModelKeyEnv))
+	})
 	http.ListenAndServe("127.0.0.1:"+args[4], nil)
 }
 

@@ -10,11 +10,11 @@ import { CardsContext, type OpenCard } from './lib/cards';
 import { DataProvider, useData } from './lib/data';
 import { ChatsScreen } from './screens/ChatsScreen';
 import { MeetingsScreen } from './screens/MeetingsScreen';
-import { PlaceholderScreen } from './screens/PlaceholderScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { SearchScreen } from './screens/SearchScreen';
 import { TasksScreen } from './screens/TasksScreen';
 import { TodayScreen } from './screens/TodayScreen';
-import { SECTION_TITLES, type Section } from './sections';
+import type { Section } from './sections';
 
 export default function App() {
   return (
@@ -74,7 +74,7 @@ function Shell() {
   else if (section === 'inbox') screen = <TasksScreen mode="inbox" />;
   else if (section === 'backlog') screen = <TasksScreen key={tagFilter?.id ?? 'all'} mode="backlog" tag={tagFilter} onClearTag={() => setTagFilter(null)} />;
   else if (section === 'chats') screen = <ChatsScreen selectedId={bigChat} onSelect={setBigChat} />;
-  else screen = <PlaceholderScreen title={SECTION_TITLES[section]} />;
+  else screen = <SettingsScreen />;
   const inChats = !searching && section === 'chats';
 
   const openBigChat = (id: string | null) => {

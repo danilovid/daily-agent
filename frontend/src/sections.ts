@@ -1,4 +1,4 @@
-// Разделы приложения. Готов только «Сегодня», остальные пока заглушки.
+// Разделы приложения.
 
 export type Section = 'today' | 'inbox' | 'backlog' | 'meetings' | 'chats' | 'settings';
 

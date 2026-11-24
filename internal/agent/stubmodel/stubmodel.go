@@ -42,6 +42,8 @@ var SlowReply = strings.TrimSpace(strings.Repeat("Это длинный медл
 
 // Request — то, что заглушка узнала о запросе.
 type Request struct {
+	Model     string // модель, которую запросил OpenCode
+	APIKey    string // ключ из заголовка Authorization; у заглушки он вымышленный
 	Stream    bool
 	Tools     []string // инструменты, которые OpenCode предложил модели
 	LastRole  string
@@ -65,8 +67,19 @@ type Server struct {
 }
 
 // Start запускает заглушку на свободном порту 127.0.0.1.
-func Start() (*Server, error) {
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+func Start() (*Server, error) { return StartAt("127.0.0.1:0") }
+
+// StartAt запускает заглушку по адресу addr. Только на этом Mac: 127.0.0.1
+// или localhost.
+func StartAt(addr string) (*Server, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	if host != "127.0.0.1" && host != "localhost" {
+		return nil, fmt.Errorf("заглушка слушает только 127.0.0.1, а не %s", host)
+	}
+	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +107,8 @@ func (s *Server) Requests() []Request {
 var callPattern = regexp.MustCompile(`\[stub:call name=([A-Za-z0-9_.-]+) args=(\{.*?\})\]`)
 
 type chatRequest struct {
-	Stream   bool `json:"stream"`
+	Model    string `json:"model"`
+	Stream   bool   `json:"stream"`
 	Messages []struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
@@ -132,7 +146,7 @@ func (s *Server) chat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	rec := Request{Stream: req.Stream}
+	rec := Request{Model: req.Model, Stream: req.Stream, APIKey: strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")}
 	for _, t := range req.Tools {
 		rec.Tools = append(rec.Tools, t.Function.Name)
 	}

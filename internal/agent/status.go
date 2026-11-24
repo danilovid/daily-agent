@@ -22,4 +22,6 @@ type Status struct {
 	ModelConfigured bool `json:"modelConfigured"`
 	// Restarts — сколько раз сервер перезапускался после падения.
 	Restarts int `json:"restarts"`
+	// Binary — путь к программе opencode, когда она найдена.
+	Binary string `json:"binary"`
 }

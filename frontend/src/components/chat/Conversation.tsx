@@ -34,6 +34,7 @@ export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyT
   // Чат создаётся первым сообщением: смена chatId в этот момент не сбрасывает переписку.
   const creating = useRef(false);
   const list = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (id: string) => {
     const v = await ChatsService.Open(id);
@@ -75,6 +76,12 @@ export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyT
     });
     return () => off();
   }, [load, onDone]);
+
+  // Маленький чат ставит курсор в поле, как только агенту можно писать:
+  // при открытии поле ещё заблокировано, пока не пришло состояние агента.
+  useEffect(() => {
+    if (variant === 'panel' && !blocked) field.current?.focus();
+  }, [variant, blocked]);
 
   // Новые строки — прокрутка вниз.
   useLayoutEffect(() => {
@@ -136,13 +143,13 @@ export function Conversation({ chatId, variant, onCreate, onView, onDone, emptyT
         <div className="chat-input">
           <label htmlFor={`chat-input-${variant}`} className="visually-hidden">Сообщение агенту</label>
           <input
+            ref={field}
             id={`chat-input-${variant}`}
             type="text"
             placeholder={placeholder}
             value={input}
             disabled={!!blocked}
             autoComplete="off"
-            autoFocus={variant === 'panel'}
             onChange={(e) => setInput(e.target.value)}
           />
           {running ? (

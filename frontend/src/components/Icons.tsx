@@ -124,3 +124,7 @@ export const NoteIcon = (p: IconProps) => (
 export const ToolIcon = (p: IconProps) => (
   <Svg size="var(--icon-note)" {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></Svg>
 );
+
+export const UpDownIcon = (p: IconProps) => (
+  <Svg strokeWidth={2.2} {...p}><path d="M8 10l4-4 4 4" /><path d="M8 14l4 4 4-4" /></Svg>
+);

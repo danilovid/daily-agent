@@ -6,8 +6,9 @@
 //	go run ./cmd/agentcheck -stub        с заглушкой модели, без сети
 //	go run ./cmd/agentcheck -n 10        с настоящей моделью (запускает автор)
 //
-// Настоящая модель берётся из DAILY_AGENT_MODEL_URL и DAILY_AGENT_MODEL_ID,
-// ключ — из Связки ключей (служба «Daily Agent», запись «model-api-key»).
+// Настоящая модель берётся из настроек приложения («Настройки» → «Агент»),
+// а без них — из DAILY_AGENT_MODEL_URL и DAILY_AGENT_MODEL_ID. Ключ — из
+// Связки ключей (служба «Daily Agent», запись «model-api-key»).
 package main
 
 import (
@@ -21,6 +22,8 @@ import (
 	agentprofile "daily-agent/agent"
 	"daily-agent/internal/agent"
 	"daily-agent/internal/agent/stubmodel"
+	"daily-agent/internal/app"
+	"daily-agent/internal/store"
 )
 
 const prompt = "Ответь одним словом: готов."
@@ -51,14 +54,11 @@ func run() error {
 		defer stub.Close()
 		model = agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
 	} else {
-		m, err := agent.ModelFromEnv(ctx)
-		if errors.Is(err, agent.ErrNoModel) {
-			return fmt.Errorf("задайте %s и %s или запустите с -stub", agent.EnvModelURL, agent.EnvModelID)
-		}
+		m, err := savedModel(ctx)
 		if err != nil {
 			return err
 		}
-		model = m
+		model = *m
 	}
 
 	// Отдельная временная папка: проверка не мешает запущенному приложению.
@@ -115,6 +115,28 @@ func run() error {
 		return fmt.Errorf("ответили %d из %d", ok, *n)
 	}
 	return nil
+}
+
+// savedModel берёт модель так же, как приложение: из его настроек, а без них
+// из переменных окружения. Из базы читаются только настройки модели.
+func savedModel(ctx context.Context) (*agent.Model, error) {
+	path, err := store.DefaultPath()
+	if err != nil {
+		return nil, err
+	}
+	db, err := store.Open(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+	m, _, err := app.LoadModel(ctx, db, agent.Keychain{Path: os.Getenv(agent.EnvKeychainPath)})
+	if err != nil {
+		return nil, err
+	}
+	if m == nil {
+		return nil, errors.New("модель не настроена: задайте её в приложении («Настройки» → «Агент») или запустите с -stub")
+	}
+	return m, nil
 }
 
 func verdict(ok bool) string {

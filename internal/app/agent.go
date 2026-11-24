@@ -52,3 +52,35 @@ func (s *AgentService) Status() AgentStatusView {
 	}
 	return AgentStatusFrom(s.status(), s.clock)
 }
+
+// unavailableText объясняет, почему агенту сейчас нельзя написать.
+// Пусто — можно.
+func unavailableText(b AgentBackend) string {
+	st := b.Status()
+	if st.State == agent.StateReady {
+		if b.Model() == nil {
+			return "Модель агента не настроена"
+		}
+		return ""
+	}
+	return serverUnavailable(st)
+}
+
+// serverUnavailable объясняет, почему OpenCode не на связи.
+func serverUnavailable(st agent.Status) string {
+	switch st.State {
+	case agent.StateReady:
+		return "OpenCode не на связи"
+	case agent.StateStarting:
+		return "OpenCode запускается"
+	case agent.StateRestarting:
+		return "OpenCode перезапускается"
+	case agent.StateFailed:
+		if st.Error != "" {
+			return "OpenCode недоступен: " + st.Error
+		}
+		return "OpenCode недоступен"
+	default:
+		return "Агент не подключён"
+	}
+}

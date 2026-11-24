@@ -113,30 +113,33 @@ func ChatEventHandler(s *ChatsService) func(agent.Event) {
 	return s.handleEvent
 }
 
+// ChatStatusHandler возвращает обработчик смены состояния OpenCode. Если
+// сервер остановился или перезапускается, например при смене модели,
+// незаконченные ответы обрываются: события о них уже не придут.
+func ChatStatusHandler(s *ChatsService) func(agent.Status) {
+	return func(st agent.Status) {
+		if st.State == agent.StateReady {
+			return
+		}
+		s.mu.Lock()
+		var ids []string
+		for id := range s.running {
+			ids = append(ids, id)
+		}
+		s.running = map[string]bool{}
+		s.mu.Unlock()
+		for _, id := range ids {
+			s.emit(ChatEvent{ChatID: id, Type: "done", Outcome: "interrupted", Error: "OpenCode перезапустился, ответ оборван"})
+		}
+	}
+}
+
 // unavailable объясняет, почему агенту сейчас нельзя написать.
 func (s *ChatsService) unavailable() string {
 	if s.backend == nil {
 		return "Агент не подключён"
 	}
-	st := s.backend.Status()
-	switch st.State {
-	case agent.StateReady:
-		if s.backend.Model() == nil {
-			return "Модель агента не настроена"
-		}
-		return ""
-	case agent.StateStarting:
-		return "OpenCode запускается"
-	case agent.StateRestarting:
-		return "OpenCode перезапускается"
-	case agent.StateFailed:
-		if st.Error != "" {
-			return "OpenCode недоступен: " + st.Error
-		}
-		return "OpenCode недоступен"
-	default:
-		return "Агент не подключён"
-	}
+	return unavailableText(s.backend)
 }
 
 func (s *ChatsService) client() (*agent.Client, error) {
@@ -395,6 +398,11 @@ func (s *ChatsService) Send(ctx context.Context, id, text string) error {
 	s.running[chat.ID] = true
 	s.mu.Unlock()
 
+	// Чат, начатый до смены модели в настройках, продолжается с новой.
+	if err := c.EnsureModel(ctx, chat.SessionID, s.backend.Model()); err != nil {
+		s.setRunning(chat.ID, false)
+		return fmt.Errorf("модель чата: %w", err)
+	}
 	if err := c.Prompt(ctx, chat.SessionID, text); err != nil {
 		s.setRunning(chat.ID, false)
 		return fmt.Errorf("отправка агенту: %w", err)

@@ -1,0 +1,129 @@
+/*
+ * Экран «Настройки» по макету docs/mockups/settings-agent.html.
+ * Значения — из tokens.css.
+ */
+
+.main[data-screen="settings"] { gap: var(--space-16); }
+
+.settings-tabs .segmented__item { height: var(--settings-tab-height); }
+
+.settings-section {
+  display: flex;
+  flex-direction: column;
+}
+.settings-section__title {
+  margin: 0 0 var(--space-6);
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  min-height: var(--settings-row-height);
+  padding: 0 var(--space-6) 0 var(--space-14);
+}
+.settings-row + .settings-row { border-top: 1px solid var(--color-border-row); }
+.settings-row__label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-7) 0;
+}
+.settings-row__title { font-size: var(--font-size-md); }
+.settings-row__hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.settings-row__hint--error { color: var(--color-danger); }
+.settings-row__hint--ok { color: var(--color-accent-soft-text); }
+.settings-row__value {
+  max-width: var(--settings-value-max);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  -webkit-user-select: text;
+  user-select: text;
+}
+.settings-row__value--plain { color: var(--color-text); }
+.settings-row__state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+.settings-row__dot {
+  width: var(--space-8);
+  height: var(--space-8);
+  border-radius: var(--radius-round);
+  background: var(--color-text-tertiary);
+}
+.settings-row__dot--online { background: var(--color-status-online); }
+.settings-row__dot--error { background: var(--color-danger); }
+
+/* Кнопка-ссылка «Проверить связь», «Изменить» */
+.settings-action {
+  flex-shrink: 0;
+  height: var(--control-height);
+  padding: 0 var(--space-10);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-accent-soft-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.settings-action:disabled { color: var(--color-text-tertiary); cursor: default; }
+
+/* Значение-список: «Вместе с приложением», модель */
+.settings-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  max-width: var(--settings-value-max);
+  height: var(--control-height);
+  padding: 0 var(--space-8);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.settings-select span { overflow: hidden; text-overflow: ellipsis; }
+.settings-select svg { color: var(--color-text-secondary); }
+
+.settings-note {
+  margin: 0;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.settings-note--warning { color: var(--color-text-muted); }
+
+/* Окно «Селфхост-модель» */
+.model-form__title { flex: 1; }
+.model-form__key { display: flex; align-items: center; gap: var(--space-8); }
+.model-form__key .text-input { flex: 1; min-width: 0; }
+.model-form__actions { display: flex; gap: var(--space-8); }

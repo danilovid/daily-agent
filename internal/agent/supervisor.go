@@ -160,6 +160,9 @@ func (s *Supervisor) Start(ctx context.Context) {
 	}
 	s.started = true
 	s.mu.Unlock()
+	// «Запускается» ставится сразу, до фоновой работы: состояние после Start
+	// никогда не «остановлен».
+	s.update(func(st *Status) { st.State = StateStarting; st.Error = ""; st.Since = time.Now() })
 	go s.run(ctx)
 }
 
@@ -198,7 +201,6 @@ func (s *Supervisor) fail(err error) {
 
 func (s *Supervisor) run(ctx context.Context) {
 	defer close(s.done)
-	s.update(func(st *Status) { st.State = StateStarting; st.Error = ""; st.Since = time.Now() })
 
 	bin := s.cfg.Binary
 	if bin == "" {
@@ -219,6 +221,10 @@ func (s *Supervisor) run(ctx context.Context) {
 		s.fail(fmt.Errorf("%w: нужна версия %s, у %s версия %s", ErrNotFound, s.cfg.Version, bin, v))
 		return
 	}
+	// Путь к программе уйдёт в окно со следующим состоянием.
+	s.mu.Lock()
+	s.status.Binary = bin
+	s.mu.Unlock()
 
 	if err := s.cfg.Profile.Prepare(s.cfg.Options); err != nil {
 		s.fail(err)

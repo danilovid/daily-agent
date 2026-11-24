@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	agentprofile "daily-agent/agent"
 	"daily-agent/internal/agent"
 	"daily-agent/internal/agent/stubmodel"
 	"daily-agent/internal/store"
@@ -21,7 +20,7 @@ import (
 type liveChat struct {
 	t       *testing.T
 	svc     *ChatsService
-	backend *agent.Backend
+	backend *agent.Manager
 	cancel  context.CancelFunc
 	mu      sync.Mutex
 	events  []ChatEvent
@@ -35,32 +34,32 @@ func startLiveChat(t *testing.T, st *store.Store, root string, stub *stubmodel.S
 		t.Skipf("нет OpenCode %s: %v", agent.PinnedVersion, err)
 	}
 	model := agent.Model{BaseURL: stub.URL, ModelID: stubmodel.ModelID}
-	profile := agent.Profile{Root: root}
-	sup := agent.NewSupervisor(agent.Config{
-		Profile: profile, Binary: bin,
-		Options: agentprofile.Options{Provider: model.Provider()},
-		Logf:    t.Logf,
-	})
-	sup.Start(context.Background())
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	if err := sup.WaitReady(ctx); err != nil {
-		t.Fatal(err)
-	}
 	lc := &liveChat{t: t, notify: make(chan ChatEvent, 1000)}
-	lc.backend = &agent.Backend{Supervisor: sup, Profile: profile, ModelRef: model.Ref()}
+	lc.backend = agent.NewManager(agent.Config{Profile: agent.Profile{Root: root}, Binary: bin, Logf: t.Logf}, &model)
+	lc.backend.Start(context.Background())
+	lc.waitReady()
 	lc.svc = NewChatsService(st, SystemClock(), lc.backend, NewTodayService(st, SystemClock()), func(e ChatEvent) {
 		lc.mu.Lock()
 		lc.events = append(lc.events, e)
 		lc.mu.Unlock()
 		lc.notify <- e
 	})
+	lc.backend.OnChange(ChatStatusHandler(lc.svc))
 	evCtx, evCancel := context.WithCancel(context.Background())
-	lc.cancel = func() { evCancel(); sup.Stop() }
+	lc.cancel = func() { evCancel(); lc.backend.Stop() }
 	go agent.RunEvents(evCtx, lc.backend.Client, ChatEventHandler(lc.svc))
 	time.Sleep(300 * time.Millisecond) // подписка на события открывается
 	t.Cleanup(lc.cancel)
 	return lc
+}
+
+func (lc *liveChat) waitReady() {
+	lc.t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	if err := lc.backend.WaitReady(ctx); err != nil {
+		lc.t.Fatal(err)
+	}
 }
 
 // waitFor ждёт событие окна нужного типа.
@@ -196,5 +195,118 @@ func TestLiveChatStop(t *testing.T) {
 	}
 	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
 		t.Fatalf("второй вопрос: %+v", d)
+	}
+}
+
+func TestLiveChatFollowsModelChange(t *testing.T) {
+	first, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	st := openStore(t)
+	root, _ := os.MkdirTemp("", "da-switch-")
+	defer os.RemoveAll(root)
+	ctx := context.Background()
+
+	lc := startLiveChat(t, st, root, first)
+	chat, err := lc.svc.Create(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := lc.svc.Send(ctx, chat.ID, "Первый вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("первый ответ: %+v", d)
+	}
+	before := len(first.Requests())
+
+	// Модель сменилась в настройках: OpenCode перезапущен с другим адресом и моделью.
+	lc.backend.SetModel(&agent.Model{BaseURL: second.URL, ModelID: "stub-model-2"})
+	lc.waitReady()
+	time.Sleep(1500 * time.Millisecond) // подписка на события открывается заново
+
+	if err := lc.svc.Send(ctx, chat.ID, "Второй вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	if d := lc.waitFor("done"); d.Outcome != "succeeded" {
+		t.Fatalf("второй ответ: %+v", d)
+	}
+	if len(first.Requests()) != before {
+		t.Fatalf("прежняя модель получила запрос после смены")
+	}
+	reqs := second.Requests()
+	if len(reqs) == 0 || reqs[len(reqs)-1].Model != "stub-model-2" {
+		t.Fatalf("новая модель: %+v", reqs)
+	}
+	view, err := lc.svc.Open(ctx, chat.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var roles []string
+	for _, m := range view.Messages {
+		roles = append(roles, m.Role)
+	}
+	if strings.Join(roles, ",") != "user,agent,user,agent" {
+		t.Fatalf("переписка после смены модели: %+v", view.Messages)
+	}
+}
+
+func TestLiveSettingsSaveAndCheck(t *testing.T) {
+	first, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := stubmodel.Start()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	t.Setenv(agent.EnvModelURL, "")
+	t.Setenv(agent.EnvModelID, "")
+	st := openStore(t)
+	root, _ := os.MkdirTemp("", "da-settings-")
+	defer os.RemoveAll(root)
+	ctx := context.Background()
+
+	lc := startLiveChat(t, st, root, first)
+	secrets := &memSecrets{}
+	svc := NewSettingsService(st, secrets, lc.backend, SystemClock(), false)
+
+	if c := svc.CheckConnection(ctx); !c.OK || c.Version != agent.PinnedVersion {
+		t.Fatalf("связь: %+v", c)
+	}
+	if c := svc.CheckModel(ctx); !c.OK {
+		t.Fatalf("модель: %+v", c)
+	}
+	view, err := svc.Agent(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Binary == "" || view.Status.State != agent.StateReady {
+		t.Fatalf("раздел «Агент»: %+v", view)
+	}
+
+	// Сохранение настроек перезапускает OpenCode с новой моделью и ключом.
+	if _, err := svc.SaveModel(ctx, ModelSettingsInput{URL: second.URL, ModelID: "stub-model-2", Key: "test-key-live"}); err != nil {
+		t.Fatal(err)
+	}
+	lc.waitReady()
+	if c := svc.CheckModel(ctx); !c.OK {
+		t.Fatalf("новая модель: %+v", c)
+	}
+	reqs := second.Requests()
+	if len(reqs) == 0 || reqs[len(reqs)-1].Model != "stub-model-2" || reqs[len(reqs)-1].LastText != ModelCheckPrompt || reqs[len(reqs)-1].APIKey != "test-key-live" {
+		t.Fatalf("запросы новой модели: %+v", reqs)
+	}
+	if secrets.key() != "test-key-live" {
+		t.Fatal("ключ не сохранён")
 	}
 }

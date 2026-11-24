@@ -22,7 +22,9 @@ type fakeOpenCode struct {
 	prompts    []string
 	titles     []string
 	interrupts int
-	messages   string // ответ на GET …/message
+	messages   string            // ответ на GET …/message
+	models     map[string]string // сессия → модель, JSON
+	switches   []string          // переключения модели
 }
 
 func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
@@ -50,6 +52,29 @@ func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 		f.mu.Unlock()
 		io.WriteString(w, `{"data":{}}`)
 	})
+	mux.HandleFunc("GET /api/session/{id}", func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		model := f.models[r.PathValue("id")]
+		if model == "" {
+			model = "null"
+		}
+		io.WriteString(w, `{"data":{"id":"`+r.PathValue("id")+`","model":`+model+`}}`)
+	})
+	mux.HandleFunc("POST /api/session/{id}/model", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Model json.RawMessage `json:"model"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		f.mu.Lock()
+		if f.models == nil {
+			f.models = map[string]string{}
+		}
+		f.models[r.PathValue("id")] = string(body.Model)
+		f.switches = append(f.switches, r.PathValue("id")+":"+string(body.Model))
+		f.mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("PATCH /api/session/{id}", func(w http.ResponseWriter, r *http.Request) {
 		var body struct{ Title string }
 		json.NewDecoder(r.Body).Decode(&body)
@@ -63,6 +88,12 @@ func (f *fakeOpenCode) server(t *testing.T) *httptest.Server {
 		f.interrupts++
 		f.mu.Unlock()
 		io.WriteString(w, `{"interrupted":true}`)
+	})
+	mux.HandleFunc("POST /api/experimental/session/{id}/wait", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mux.HandleFunc("GET /api/info", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, `{"version":"`+agent.PinnedVersion+`","pid":1}`)
 	})
 	mux.HandleFunc("GET /api/session/{id}/message", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -84,10 +115,15 @@ type fakeBackend struct {
 	model  *agent.ModelRef
 }
 
-func (b *fakeBackend) Client() (*agent.Client, error) { return agent.NewClient(b.url, "x"), nil }
-func (b *fakeBackend) Status() agent.Status           { return b.status }
-func (b *fakeBackend) Workspace() string              { return "/tmp/ws" }
-func (b *fakeBackend) Model() *agent.ModelRef         { return b.model }
+func (b *fakeBackend) Client() (*agent.Client, error) {
+	if b.status.State != agent.StateReady {
+		return nil, agent.ErrNotReady
+	}
+	return agent.NewClient(b.url, "x"), nil
+}
+func (b *fakeBackend) Status() agent.Status   { return b.status }
+func (b *fakeBackend) Workspace() string      { return "/tmp/ws" }
+func (b *fakeBackend) Model() *agent.ModelRef { return b.model }
 
 type chatHarness struct {
 	svc     *ChatsService
@@ -304,5 +340,59 @@ func TestChatValidationRenameStopDelete(t *testing.T) {
 	list, _ := h.svc.List(ctx)
 	if len(list) != 0 {
 		t.Errorf("удалённый чат в списке: %+v", list)
+	}
+}
+
+func TestChatSwitchesModelAfterSettingsChange(t *testing.T) {
+	h := newChatHarness(t)
+	ctx := context.Background()
+	chat, _ := h.svc.Create(ctx, false)
+	// Сессия создана с моделью m. Модель в настройках сменилась на m2.
+	h.api.mu.Lock()
+	h.api.models = map[string]string{"ses_1": `{"id":"m","providerID":"daily-model"}`}
+	h.api.mu.Unlock()
+	h.backend.model = &agent.ModelRef{ID: "m2", ProviderID: agent.ProviderID}
+
+	if err := h.svc.Send(ctx, chat.ID, "Первый вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	h.svc.setRunning(chat.ID, false)
+	if err := h.svc.Send(ctx, chat.ID, "Второй вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	h.api.mu.Lock()
+	defer h.api.mu.Unlock()
+	if strings.Join(h.api.switches, ";") != `ses_1:{"id":"m2","providerID":"daily-model"}` {
+		t.Fatalf("переключения модели: %v", h.api.switches)
+	}
+	if len(h.api.prompts) != 2 {
+		t.Fatalf("вопросы: %v", h.api.prompts)
+	}
+}
+
+func TestChatStatusHandlerEndsRunningReplies(t *testing.T) {
+	h := newChatHarness(t)
+	ctx := context.Background()
+	chat, _ := h.svc.Create(ctx, false)
+	if err := h.svc.Send(ctx, chat.ID, "Вопрос"); err != nil {
+		t.Fatal(err)
+	}
+	handle := ChatStatusHandler(h.svc)
+	handle(agent.Status{State: agent.StateReady})
+	if !h.svc.isRunning(chat.ID) {
+		t.Fatal("на связи ответ не обрывается")
+	}
+	handle(agent.Status{State: agent.StateStarting})
+	if h.svc.isRunning(chat.ID) {
+		t.Fatal("после перезапуска ответ должен быть оборван")
+	}
+	h.mu.Lock()
+	last := h.events[len(h.events)-1]
+	h.mu.Unlock()
+	if last.Type != "done" || last.Outcome != "interrupted" || last.ChatID != chat.ID || last.Error == "" {
+		t.Fatalf("событие: %+v", last)
+	}
+	if err := h.svc.Send(ctx, chat.ID, "Снова"); err != nil {
+		t.Fatalf("после обрыва можно писать снова: %v", err)
 	}
 }

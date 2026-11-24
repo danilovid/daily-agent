@@ -54,6 +54,11 @@ tasks:
     cmds:
       - go run ./cmd/agentcheck {{if .STUB}}-stub{{end}} {{if .N}}-n {{.N}}{{end}}
 
+  stub:model:
+    summary: Заглушка модели на 127.0.0.1 для проверки экрана настроек. Пример — wails3 task stub:model [PORT=8765]
+    cmds:
+      - go run ./cmd/stubmodel {{if .PORT}}-port {{.PORT}}{{end}}
+
   db:seed:
     summary: Наполняет пустую базу вымышленными тестовыми данными. Пример — wails3 task db:seed [DB=путь]
     cmds:
