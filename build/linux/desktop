@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Daily Agent
+Comment=Личный рабочий помощник
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/daily-agent %u
+Terminal=false
+Type=Application
+Icon=daily-agent
+Categories=Utility;
+StartupWMClass=daily-agent
+
+ 

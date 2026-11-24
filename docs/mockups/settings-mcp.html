@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Daily Agent: настройки, MCP-серверы</title>
+<style>
+body{margin:0}
+a{color:#6FB1FF}a:hover{color:#9CC9FF}
+button,input{font-family:inherit}
+input::placeholder{color:#98989D}
+body{background:#111113}
+</style>
+</head>
+<body>
+<div style="position: relative; width: 1100px; height: 860px; box-sizing: border-box; display: flex; background: #1E1E20; color: #F2F2F4; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, sans-serif; font-size: 13px; line-height: 1.4">
+
+<aside style="width: 340px; flex-shrink: 0; box-sizing: border-box; display: flex; flex-direction: column; background: #252528; border-right: 1px solid #38383B">
+
+<div aria-hidden="true" style="display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 18px">
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #FF5F57"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #FEBC2E"></span>
+<span style="width: 12px; height: 12px; border-radius: 50%; background: #28C840"></span>
+</div>
+
+<div style="display: flex; align-items: baseline; justify-content: space-between; padding: 2px 18px 12px">
+<h1 style="margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em">Daily Agent</h1>
+<span style="font-size: 12px; color: #98989D">2 встречи · 3 задачи</span>
+</div>
+
+<div style="padding: 0 14px 10px">
+<div style="display: flex; align-items: center; gap: 8px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; background: #1E1E20; border: 1px solid #45454A; color: #A1A1A6">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+<label for="search-input" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)">Поиск</label>
+<input id="search-input" type="text" placeholder="Поиск по задачам и встречам" style="flex: 1; min-width: 0; height: 40px; padding: 0; background: transparent; border: 0; outline: 0; color: #F2F2F4; font: inherit; font-size: 13px">
+</div>
+</div>
+
+<nav aria-label="Разделы" style="display: flex; flex-direction: column; gap: 2px; padding: 0 8px">
+<a href="today.html" style="display: flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; color: #F2F2F4; text-decoration: none; font-size: 14px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M8 3v4"></path><path d="M16 3v4"></path><path d="M4 10h16"></path></svg>
+<span>Сегодня</span>
+<span style="margin-left: auto; font-size: 12px; color: #98989D">24 ноя</span>
+</a>
+<button style="display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #F2F2F4; font: inherit; font-size: 14px; text-align: left; cursor: pointer">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13l2.5-7h11L20 13v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"></path><path d="M4 13h4.5a3.5 3.5 0 0 0 7 0H20"></path></svg>
+<span>Входящие</span>
+<span style="margin-left: auto; min-width: 20px; height: 20px; box-sizing: border-box; padding: 0 6px; display: flex; align-items: center; justify-content: center; border-radius: 999px; background: #6FB1FF; color: #071B33; font-size: 12px; font-weight: 700">3</span>
+</button>
+<button style="display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; box-sizing: border-box; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #F2F2F4; font: inherit; font-size: 14px; text-align: left; cursor: pointer">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7h11"></path><path d="M9 12h11"></path><path d="M9 17h11"></path><path d="M4 7h.01"></path><path d="M4 12h.01"></path><path d="M4 17h.01"></path></svg>
+<span>Бэклог</span>
+<span style="margin-left: auto; font-size: 12px; color: #98989D">3</span>
+</button>
+<a href="meetings.html" style="display: flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; color: #F2F2F4; text-decoration: none; font-size: 14px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.5 2.5"></path></svg>
+<span>Встречи</span>
+<span style="margin-left: auto; font-size: 12px; color: #98989D">2</span>
+</a>
+<a href="chats.html" style="display: flex; align-items: center; gap: 10px; height: 44px; box-sizing: border-box; padding: 0 12px; border-radius: 8px; color: #F2F2F4; text-decoration: none; font-size: 14px">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg>
+<span>Чаты</span>
+<span style="margin-left: auto; font-size: 12px; color: #98989D">6</span>
+</a>
+</nav>
+
+<div style="display: flex; flex-direction: column; padding: 10px 14px 0">
+<h2 style="margin: 0; padding: 0 4px; font-size: 12px; font-weight: 600; color: #98989D">Теги</h2>
+<div style="display: flex; align-items: center; gap: 6px">
+<button style="display: flex; align-items: center; height: 44px; padding: 0; background: transparent; border: 0; font: inherit; cursor: pointer"><span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid #45454A; color: #F2F2F4; font-size: 12px"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #6FB1FF"></span>Работа</span></button>
+<button style="display: flex; align-items: center; height: 44px; padding: 0; background: transparent; border: 0; font: inherit; cursor: pointer"><span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid #45454A; color: #F2F2F4; font-size: 12px"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #FFB36B"></span>Личное</span></button>
+<button style="display: flex; align-items: center; height: 44px; padding: 0; background: transparent; border: 0; font: inherit; cursor: pointer"><span style="display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid #45454A; color: #F2F2F4; font-size: 12px"><span aria-hidden="true" style="width: 7px; height: 7px; border-radius: 50%; background: #8FE0C0"></span>Релиз</span></button>
+<button aria-label="Новый тег" style="width: 44px; height: 44px; margin-left: auto; margin-right: -8px; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+
+<div style="margin-top: 10px; padding: 8px 14px 0; border-top: 1px solid #38383B; display: flex; flex-direction: column">
+<div style="display: flex; align-items: center; justify-content: space-between; height: 44px; padding-left: 4px">
+<h2 style="margin: 0; font-size: 15px; font-weight: 600">Ноябрь <span style="font-weight: 400; color: #98989D">2026</span></h2>
+<div style="display: flex">
+<button aria-label="Предыдущий месяц" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>
+</button>
+<button aria-label="Следующий месяц" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+</button>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); height: 24px; align-items: center; text-align: center; font-size: 11px; color: #98989D">
+<span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(7, minmax(0, 1fr))">
+<span></span><span></span><span></span><span></span><span></span><span></span>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">1</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">2</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">3</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">4</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">5</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">6</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">7</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">8</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">9</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">10</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">11</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">12</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">13</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">14</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">15</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">16</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">17</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">18</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">19</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">20</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">21</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">22</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">23</button>
+<button aria-current="date" aria-label="24 ноября, сегодня, две встречи" style="position: relative; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center; background: transparent; border: 0; border-radius: 8px; font: inherit; cursor: pointer">
+<span style="width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #6FB1FF; color: #071B33; font-weight: 700">24</span>
+</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">25</button>
+<button aria-label="26 ноября, есть встреча" style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">26<span aria-hidden="true" style="position: absolute; bottom: 4px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #6FB1FF"></span></button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">27</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">28</button>
+<button style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">29</button>
+<button aria-label="30 ноября, есть встреча" style="position: relative; height: 40px; padding: 0; background: transparent; border: 0; border-radius: 8px; color: #D6D6DA; font: inherit; cursor: pointer">30<span aria-hidden="true" style="position: absolute; bottom: 4px; left: calc(50% - 2px); width: 4px; height: 4px; border-radius: 50%; background: #6FB1FF"></span></button>
+</div>
+</div>
+
+<div style="margin-top: auto; display: flex; align-items: center; height: 48px; padding: 0 6px 0 18px; border-top: 1px solid #38383B">
+<p style="margin: 0 auto 0 0; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #98989D; white-space: nowrap"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #6FB1FF"></span>OpenCode на связи · 09:02</p>
+<button aria-label="Обновить. Последнее обновление в 09:02" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><path d="M21 3v6h-6"></path></svg>
+</button>
+<a href="settings-agent.html" aria-label="Настройки" aria-current="true" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 10px; background: #3A3A3E; color: #F2F2F4; text-decoration: none">
+<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10"></path><path d="M18 7h2"></path><circle cx="16" cy="7" r="2"></circle><path d="M4 17h2"></path><path d="M10 17h10"></path><circle cx="8" cy="17" r="2"></circle></svg>
+</a>
+</div>
+
+</aside>
+
+<main style="flex: 1; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; padding: 22px 36px 96px; overflow: hidden">
+
+<div style="display: flex; align-items: center; height: 44px">
+<h2 style="margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em">Настройки</h2>
+</div>
+
+<nav aria-label="Разделы настроек" style="display: flex; align-self: flex-start; padding: 2px; border-radius: 10px; background: #2A2A2E">
+<a href="settings-agent.html" style="display: flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 8px; color: #C7C7CC; text-decoration: none; font-size: 13px">Агент</a>
+<a href="settings-mcp.html" aria-current="page" style="display: flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 8px; background: #45454A; color: #F2F2F4; text-decoration: none; font-size: 13px; font-weight: 600">MCP-серверы</a>
+<a href="settings-plugins.html" style="display: flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 8px; color: #C7C7CC; text-decoration: none; font-size: 13px">Плагины</a>
+<a href="settings-general.html" style="display: flex; align-items: center; height: 44px; padding: 0 16px; border-radius: 8px; color: #C7C7CC; text-decoration: none; font-size: 13px">Общие</a>
+</nav>
+
+<div style="display: flex; align-items: center; gap: 16px; min-height: 44px">
+<p style="flex: 1; min-width: 0; margin: 0; padding: 0 2px; font-size: 13px; color: #A1A1A6">Серверы подключаются к агенту. Приложение записывает их в настройки OpenCode.</p>
+<a href="settings-mcp-add.html" style="display: flex; align-items: center; gap: 6px; height: 44px; flex-shrink: 0; box-sizing: border-box; padding: 0 14px; border: 1px solid #45454A; border-radius: 10px; color: #F2F2F4; text-decoration: none; font-size: 14px; font-weight: 500">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+<span>Сервер</span>
+</a>
+</div>
+
+<div style="display: flex; flex-direction: column; background: #252528; border: 1px solid #38383B; border-radius: 12px">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 6px 0 14px;">
+<span aria-hidden="true" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #6FB1FF"></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Мессенджер</span><span style="font-size: 12px; color: #A1A1A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Удалённый · [АДРЕС СЕРВЕРА]</span></div>
+<span style="display: flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; background: #2F2F33; color: #C7C7CC; font-size: 12px; white-space: nowrap">Только чтение</span>
+<span style="font-size: 12px; color: #C7C7CC; white-space: nowrap">Подключён</span>
+<button role="switch" aria-checked="true" aria-label="Сервер включён: Мессенджер" style="width: 52px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; cursor: pointer"><span aria-hidden="true" style="position: relative; display: block; width: 38px; height: 22px; border-radius: 11px; background: #6FB1FF"><span style="position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF"></span></span></button>
+<button aria-label="Действия с сервером: Мессенджер" style="width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 6px 0 14px; border-top: 1px solid #2E2E31;">
+<span aria-hidden="true" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #6FB1FF"></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Трекер задач</span><span style="font-size: 12px; color: #A1A1A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Удалённый · [АДРЕС СЕРВЕРА]</span></div>
+<span style="display: flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; background: #2F2F33; color: #C7C7CC; font-size: 12px; white-space: nowrap">Только чтение</span>
+<span style="font-size: 12px; color: #C7C7CC; white-space: nowrap">Подключён</span>
+<button role="switch" aria-checked="true" aria-label="Сервер включён: Трекер задач" style="width: 52px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; cursor: pointer"><span aria-hidden="true" style="position: relative; display: block; width: 38px; height: 22px; border-radius: 11px; background: #6FB1FF"><span style="position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF"></span></span></button>
+<button aria-label="Действия с сервером: Трекер задач" style="width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 6px 0 14px; border-top: 1px solid #2E2E31;">
+<span aria-hidden="true" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #FFD60A"></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">GitLab</span><span style="font-size: 12px; color: #A1A1A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Удалённый · [АДРЕС СЕРВЕРА]</span></div>
+<span style="display: flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; background: #2F2F33; color: #C7C7CC; font-size: 12px; white-space: nowrap">Только чтение</span>
+<span style="font-size: 12px; color: #FFD98A; white-space: nowrap">Нужен вход</span>
+<button style="height: 44px; padding: 0 10px; background: transparent; border: 0; border-radius: 8px; color: #9CC9FF; font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer">Войти</button>
+<button role="switch" aria-checked="true" aria-label="Сервер включён: GitLab" style="width: 52px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; cursor: pointer"><span aria-hidden="true" style="position: relative; display: block; width: 38px; height: 22px; border-radius: 11px; background: #6FB1FF"><span style="position: absolute; top: 2px; left: 18px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF"></span></span></button>
+<button aria-label="Действия с сервером: GitLab" style="width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 6px 0 14px; border-top: 1px solid #2E2E31;">
+<span aria-hidden="true" style="width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: #6E6E73"></span>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column"><span style="font-size: 15px; font-weight: 600">Календарь</span><span style="font-size: 12px; color: #A1A1A6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Локальный · [КОМАНДА ЗАПУСКА]</span></div>
+<span style="display: flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; background: #2F2F33; color: #C7C7CC; font-size: 12px; white-space: nowrap">Только чтение</span>
+<span style="font-size: 12px; color: #A1A1A6; white-space: nowrap">Выключен</span>
+<button role="switch" aria-checked="false" aria-label="Сервер включён: Календарь" style="width: 52px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; cursor: pointer"><span aria-hidden="true" style="position: relative; display: block; width: 38px; height: 22px; border-radius: 11px; background: #55555A"><span style="position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF"></span></span></button>
+<button aria-label="Действия с сервером: Календарь" style="width: 44px; height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; padding: 0; background: transparent; border: 0; border-radius: 10px; color: #A1A1A6; cursor: pointer"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.7"></circle><circle cx="12" cy="12" r="1.7"></circle><circle cx="19" cy="12" r="1.7"></circle></svg></button>
+</div>
+</div>
+
+<section style="display: flex; flex-direction: column">
+<h3 style="margin: 0 0 6px; padding: 0 2px; font-size: 13px; font-weight: 600; color: #A1A1A6">Права агента</h3>
+<div style="display: flex; flex-direction: column; background: #252528; border: 1px solid #38383B; border-radius: 12px">
+<div style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 6px 0 14px;">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 7px 0"><span style="font-size: 14px">Рабочие системы</span><span style="font-size: 12px; color: #A1A1A6">Агент читает данные и ничего не отправляет</span></div>
+<button aria-label="Права в рабочих системах: Только чтение" style="display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #F2F2F4; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer"><span>Только чтение</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: #A1A1A6"><path d="M8 10l4-4 4 4"></path><path d="M8 14l4 4 4-4"></path></svg></button>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 6px 0 14px; border-top: 1px solid #2E2E31;">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 7px 0"><span style="font-size: 14px">Задачи в приложении</span><span style="font-size: 12px; color: #A1A1A6">Агент добавляет задачи во входящие и меняет список</span></div>
+<button aria-label="Права в списке задач: Чтение и запись" style="display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 8px; background: transparent; border: 0; border-radius: 8px; color: #F2F2F4; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer"><span>Чтение и запись</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color: #A1A1A6"><path d="M8 10l4-4 4 4"></path><path d="M8 14l4 4 4-4"></path></svg></button>
+</div>
+</div>
+</section>
+
+</main>
+
+<a href="chat-small.html" aria-label="Открыть чат с агентом" style="position: absolute; right: 24px; bottom: 24px; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; border-radius: 50%; background: #6FB1FF; color: #071B33; text-decoration: none; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5)">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-7l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z"></path></svg>
+</a>
+
+</div>
+</body>
+</html>
