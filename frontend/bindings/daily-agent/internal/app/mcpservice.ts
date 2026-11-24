@@ -23,6 +23,15 @@ export function Add($in: $models.MCPServerInput): $CancellablePromise<$models.MC
 }
 
 /**
+ * ImportTokens переносит недостающие токены сервера из настроек OpenCode
+ * пользователя в Связку ключей. Только по просьбе пользователя: в файлы
+ * приложения и в настройки OpenCode агента токены не попадают.
+ */
+export function ImportTokens(name: string): $CancellablePromise<$models.MCPServerView[] | null> {
+    return $Call.ByID(3031344132, name);
+}
+
+/**
  * List возвращает MCP-серверы с состоянием и инструментами.
  */
 export function List(): $CancellablePromise<$models.MCPServerView[] | null> {

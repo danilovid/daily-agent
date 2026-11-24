@@ -29,6 +29,8 @@ type mcpEntry struct {
 	Custom     bool
 	Definition map[string]any
 	Row        *store.MCPServer
+	// User — сервер из настроек OpenCode пользователя; nil — свой.
+	User *agent.UserMCPServer
 }
 
 // appMCPToken — токен своего сервера: заголовок Authorization: Bearer.
@@ -49,9 +51,10 @@ func mcpEntries(ctx context.Context, st *store.Store, secrets Secrets, user agen
 		byName[rows[i].Name] = &rows[i]
 	}
 	var out []mcpEntry
-	for _, s := range user.MCP {
+	for i := range user.MCP {
+		s := user.MCP[i]
 		e := mcpEntry{Name: s.Name, Title: s.Title, Source: store.MCPSourceOpenCode, Type: s.Type, URL: s.URL, Command: s.Command,
-			Enabled: !s.Disabled, Tokens: s.Tokens, Definition: s.Definition, Auth: store.MCPAuthNone}
+			Enabled: !s.Disabled, Tokens: s.Tokens, Definition: s.Definition, Auth: store.MCPAuthNone, User: &user.MCP[i]}
 		if s.OAuth {
 			e.Auth = store.MCPAuthOAuth
 		} else if len(s.Tokens) > 0 {
@@ -110,6 +113,9 @@ func mcpEntries(ctx context.Context, st *store.Store, secrets Secrets, user agen
 	return out, env, nil
 }
 
+// localStartupMillis — сколько ждать запуска локального MCP-сервера.
+const localStartupMillis = 120000
+
 // mcpOptions добавляет MCP-серверы в профиль: выключенные и без секретов
 // агенту недоступны. Права агента — шаблоны чтения или выбранные
 // инструменты; рабочим чатам точный список даёт Manager.
@@ -125,6 +131,10 @@ func mcpOptions(entries []mcpEntry, setup *agent.Setup) {
 		active := e.Enabled && len(e.Missing) == 0
 		if !active {
 			def["disabled"] = true
+		}
+		// «npx -y пакет» при первом запуске скачивает пакет: даём время.
+		if def["type"] == "local" && def["timeout"] == nil {
+			def["timeout"] = map[string]any{"startup": localStartupMillis}
 		}
 		delete(def, "enabled")
 		setup.Options.MCP[e.Name] = def
@@ -182,7 +192,10 @@ type MCPServerView struct {
 	Status string         `json:"status"`
 	Error  string         `json:"error"`
 	Tokens []MCPTokenView `json:"tokens"`
-	Tools  []MCPToolView  `json:"tools"`
+	// TokensInConfig — недостающие токены есть в настройках OpenCode
+	// пользователя: их можно перенести в Связку ключей одной кнопкой.
+	TokensInConfig bool          `json:"tokensInConfig"`
+	Tools          []MCPToolView `json:"tools"`
 	// Custom — инструменты выбраны вручную.
 	Custom bool `json:"custom"`
 }
@@ -260,6 +273,9 @@ func (s *MCPService) List(ctx context.Context) ([]MCPServerView, error) {
 		}
 		for _, t := range e.Tokens {
 			v.Tokens = append(v.Tokens, MCPTokenView{Kind: t.Kind, Key: t.Key, Saved: !missing[t.Kind+":"+t.Key]})
+		}
+		for _, t := range e.Missing {
+			v.TokensInConfig = v.TokensInConfig || e.User != nil && e.User.HasSecret(t)
 		}
 		st, known := states[e.Name]
 		switch {
@@ -437,6 +453,39 @@ func (s *MCPService) SetToken(ctx context.Context, name, kind, key, token string
 		}
 	}
 	return nil, fmt.Errorf("у сервера %s нет секрета %s", name, key)
+}
+
+// ImportTokens переносит недостающие токены сервера из настроек OpenCode
+// пользователя в Связку ключей. Только по просьбе пользователя: в файлы
+// приложения и в настройки OpenCode агента токены не попадают.
+func (s *MCPService) ImportTokens(ctx context.Context, name string) ([]MCPServerView, error) {
+	s.settings.mu.Lock()
+	defer s.settings.mu.Unlock()
+	_, e, err := s.override(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if e.User == nil {
+		return nil, errors.New("сервер добавлен в приложении: его токен вводится здесь")
+	}
+	moved := 0
+	for _, t := range e.Missing {
+		v, ok := e.User.Secret(t)
+		if !ok {
+			continue
+		}
+		if err := agent.ValidateKey(v); err != nil {
+			return nil, fmt.Errorf("токен %s из настроек OpenCode: %w", t.Key, err)
+		}
+		if err := s.settings.secrets.Set(ctx, agent.KeychainService, t.Account(name), v); err != nil {
+			return nil, err
+		}
+		moved++
+	}
+	if moved == 0 {
+		return nil, errors.New("в настройках OpenCode нет токенов этого сервера")
+	}
+	return s.applied(ctx)
 }
 
 // Remove удаляет свой сервер и его токен. Серверы из настроек OpenCode

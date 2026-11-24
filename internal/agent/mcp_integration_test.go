@@ -177,3 +177,41 @@ func TestLiveMCPTools(t *testing.T) {
 		t.Fatalf("выключенный сервер предложен: %v", offered)
 	}
 }
+
+// Локальный сервер запускается по имени команды, как «npx …»: он находится,
+// только если его папка есть в PATH профиля. Из Finder приложение получает
+// урезанный PATH, поэтому PATH берётся из оболочки входа.
+func TestLiveMCPLocalCommandFromPath(t *testing.T) {
+	bin, err := FindBinary(context.Background(), Candidates(), PinnedVersion, nil)
+	if err != nil {
+		t.Skipf("нет OpenCode %s: %v", PinnedVersion, err)
+	}
+	model, _ := stubmodel.Start()
+	defer model.Close()
+	tmp, _ := os.MkdirTemp("", "da-path-")
+	defer os.RemoveAll(tmp)
+	root, _ := filepath.EvalSymlinks(tmp)
+	tools := filepath.Join(root, "tools")
+	os.MkdirAll(tools, 0o700)
+	self, _ := os.ReadFile(os.Args[0])
+	os.WriteFile(filepath.Join(tools, "fake-mcp"), self, 0o700)
+
+	run := func(path string) MCPState {
+		setup := Model{BaseURL: model.URL, ModelID: stubmodel.ModelID}.Setup()
+		setup.Options.MCP = map[string]map[string]any{
+			"local": {"type": "local", "command": []string{"fake-mcp"}, "timeout": map[string]any{"startup": 120000},
+				"environment": map[string]any{fakeMCPEnv: filepath.Join(root, "mcp.log")}},
+		}
+		m := NewManager(Config{Profile: Profile{Root: filepath.Join(root, "profile"), Path: path}, Binary: bin, Logf: t.Logf}, setup)
+		defer m.Stop()
+		m.Start(context.Background())
+		waitAgent(t, m)
+		return mcpState(m, "local")
+	}
+	if st := run(""); st.Status == "connected" {
+		t.Fatalf("без папки в PATH сервер не должен находиться: %+v", st)
+	}
+	if st := run(tools + ":/usr/bin:/bin"); st.Status != "connected" || len(st.Tools) != 3 {
+		t.Fatalf("с папкой в PATH: %+v", st)
+	}
+}

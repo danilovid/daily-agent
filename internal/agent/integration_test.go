@@ -308,7 +308,14 @@ func TestProfileHasNoConfigWarnings(t *testing.T) {
 	defer os.RemoveAll(root)
 	p := Profile{Root: root}
 	model := Model{BaseURL: "http://127.0.0.1:9/v1", ModelID: "m", APIKey: "x"}
-	if err := p.Prepare(agentprofile.Options{Provider: model.Provider(), AllowedTools: []string{"tracker_get_issue"}}); err != nil {
+	// MCP-сервер в том виде, как его пишет приложение: Code Mode выключен,
+	// у локального — время на запуск.
+	opts := agentprofile.Options{Provider: model.Provider(), AllowedTools: []string{"tracker_get_issue"},
+		MCP: map[string]map[string]any{
+			"tracker": {"type": "local", "command": []string{"/usr/bin/false"}, "disabled": true, "timeout": map[string]any{"startup": 120000}},
+			"repo":    {"type": "remote", "url": "http://127.0.0.1:9/mcp", "oauth": false, "disabled": true, "headers": map[string]any{"Authorization": "Bearer {env:DAILY_AGENT_MCP_REPO}"}},
+		}}
+	if err := p.Prepare(opts); err != nil {
 		t.Fatal(err)
 	}
 	port, _ := freePort()

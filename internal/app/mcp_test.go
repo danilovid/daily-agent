@@ -118,7 +118,25 @@ func TestMCPService(t *testing.T) {
 		t.Fatalf("трекер без токена: %+v", tracker)
 	}
 
-	// Токен — в Связку ключей, OpenCode перезапускается с ним.
+	// Токен есть в настройках OpenCode: его можно перенести одной кнопкой.
+	if !tracker.TokensInConfig {
+		t.Fatalf("токен в настройках OpenCode: %+v", tracker)
+	}
+	if _, err := svc.ImportTokens(ctx, "repo"); err == nil {
+		t.Fatal("у репозитория нет токенов в настройках")
+	}
+	list, err = svc.ImportTokens(ctx, "treker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.secrets.key("mcp:treker:header:Authorization") != "test-secret-tracker" || list[1].Status == "needs_token" || list[1].TokensInConfig {
+		t.Fatalf("после переноса: %+v", list[1])
+	}
+	if !contains(ag.last().Env, "DAILY_AGENT_MCP_TREKER_HEADER_AUTHORIZATION=test-secret-tracker") {
+		t.Fatalf("токен в окружении OpenCode: %v", ag.last().Env)
+	}
+
+	// Новый токен вручную — в Связку ключей, OpenCode перезапускается с ним.
 	if _, err := svc.SetToken(ctx, "treker", "header", "Authorization", "test-token-tracker"); err != nil {
 		t.Fatal(err)
 	}

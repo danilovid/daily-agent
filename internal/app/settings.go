@@ -208,6 +208,8 @@ func loadSources(ctx context.Context, st *store.Store, secrets Secrets, user age
 	}
 	mcpOptions(entries, setup)
 	setup.Env = append(setup.Env, mcpEnv...)
+	// Переменные, на которые ссылаются настройки OpenCode пользователя ({env:…}).
+	setup.Env = append(setup.Env, user.RefEnv...)
 	src.setup = setup
 	return src, nil
 }

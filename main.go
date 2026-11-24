@@ -140,7 +140,10 @@ func main() {
 // OpenCode пользователя и облачные провайдеры каталога. Ключи — из Связки
 // ключей. Без модели OpenCode запускается, но агент не ответит.
 func newAgent(ctx context.Context, root string, db *store.Store, keychain agent.Keychain, stub bool) (*agent.Manager, func()) {
-	cfg := agent.Config{Profile: agent.Profile{Root: root}, Logf: log.Printf}
+	// PATH и прокси — из оболочки входа: приложение из Finder их не получает,
+	// а локальные MCP-серверы вроде «npx -y …» без них не запускаются.
+	profile := agent.Profile{Root: root, Path: agent.LoginPath(), Inherit: agent.ShellEnv()}
+	cfg := agent.Config{Profile: profile, Logf: log.Printf}
 	var setup *agent.Setup
 	stop := func() {}
 	if stub {

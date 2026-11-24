@@ -214,3 +214,43 @@ func TestReadUserMCP(t *testing.T) {
 		}
 	}
 }
+
+func TestUserConfigSecretsAndRefs(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "opencode.json"), `{
+	"providers": {"lab": {"package": "@opencode/ai/providers/openai-compatible",
+		"settings": {"baseURL": "{env:LAB_URL}"}, "models": {"m": {}}}},
+	"mcp": {"servers": {
+		"tracker": {"type": "remote", "url": "https://tracker.example.test/mcp",
+			"headers": {"Authorization": "Bearer test-secret-1", "X-Team": "{env:TEAM_ID}"}},
+		"gitlab": {"type": "local", "command": ["npx", "-y", "gitlab-mcp"],
+			"environment": {"GITLAB_TOKEN": "{env:MY_GITLAB_TOKEN}", "GITLAB_API_TOKEN": "test-secret-2"}}
+	}}}`)
+	cfg, err := ReadUserConfig(filepath.Join(dir, "opencode.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, _ := cfg.MCPServer("tracker")
+	if v, ok := tr.Secret(tr.Tokens[0]); !ok || v != "test-secret-1" || !tr.HasSecret(tr.Tokens[0]) {
+		t.Fatalf("секрет трекера: %q %v", v, ok)
+	}
+	gl, _ := cfg.MCPServer("gitlab")
+	if len(gl.Tokens) != 1 || gl.Tokens[0].Key != "GITLAB_API_TOKEN" {
+		t.Fatalf("токены gitlab: %+v", gl.Tokens)
+	}
+	if v, _ := gl.Secret(gl.Tokens[0]); v != "test-secret-2" {
+		t.Fatalf("секрет gitlab: %q", v)
+	}
+	// Значения секретов не попадают в описания для профиля.
+	raw, _ := json.Marshal(cfg.MCP)
+	if strings.Contains(string(raw), "test-secret") {
+		t.Fatalf("секрет в описании: %s", raw)
+	}
+	if refs := strings.Join(cfg.EnvRefs(), ","); refs != "LAB_URL,MY_GITLAB_TOKEN,TEAM_ID" {
+		t.Fatalf("ссылки на переменные: %s", refs)
+	}
+	env := refEnv(cfg.EnvRefs(), map[string]string{"MY_GITLAB_TOKEN": "test-shell-token", "OTHER": "x", "TEAM_ID": ""})
+	if strings.Join(env, ",") != "MY_GITLAB_TOKEN=test-shell-token" {
+		t.Fatalf("переменные из оболочки: %v", env)
+	}
+}

@@ -16,9 +16,22 @@ import (
 //	workspace/                     рабочая папка агента, пустая
 type Profile struct {
 	Root string
+	// Path — PATH процесса OpenCode и его локальных MCP-серверов. Пусто —
+	// только системные папки.
+	Path string
+	// Inherit — значения переменных прокси и сертификатов, если в окружении
+	// приложения их нет: например, из оболочки входа.
+	Inherit map[string]string
 }
 
 func (p Profile) dir(name string) string { return filepath.Join(p.Root, name) }
+
+func (p Profile) path() string {
+	if p.Path != "" {
+		return p.Path
+	}
+	return "/usr/bin:/bin:/usr/sbin:/sbin"
+}
 
 // Workspace — рабочая папка агента.
 func (p Profile) Workspace() string { return p.dir("workspace") }
@@ -66,7 +79,7 @@ func (p Profile) Env(password string, extra ...string) []string {
 	home, _ := os.UserHomeDir()
 	env := []string{
 		"HOME=" + home,
-		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+		"PATH=" + p.path(),
 		"XDG_CONFIG_HOME=" + p.dir("config"),
 		"XDG_DATA_HOME=" + p.dir("data"),
 		"XDG_STATE_HOME=" + p.dir("state"),
@@ -83,6 +96,8 @@ func (p Profile) Env(password string, extra ...string) []string {
 	}
 	for _, name := range passthroughEnv {
 		if v, ok := os.LookupEnv(name); ok && v != "" {
+			env = append(env, name+"="+v)
+		} else if v := p.Inherit[name]; v != "" {
 			env = append(env, name+"="+v)
 		}
 	}

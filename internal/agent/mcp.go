@@ -81,6 +81,44 @@ func (m *Manager) warmup(sup *Supervisor) {
 		m.mcp = state
 	}
 	m.mu.Unlock()
+	for _, s := range state {
+		if s.Status == "pending" {
+			go m.followUp(sup)
+			break
+		}
+	}
+}
+
+// followUp ждёт серверы, которые не успели подключиться за прогрев
+// (например, «npx» скачивает пакет), и потом обновляет список инструментов.
+func (m *Manager) followUp(sup *Supervisor) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+	for ctx.Err() == nil {
+		time.Sleep(3 * time.Second)
+		m.mu.Lock()
+		current := m.sup == sup
+		m.mu.Unlock()
+		if !current {
+			return
+		}
+		c, err := sup.Client()
+		if err != nil {
+			return
+		}
+		list, err := c.MCPServers(ctx, m.Workspace())
+		if err != nil {
+			continue
+		}
+		pending := false
+		for _, s := range list {
+			pending = pending || s.Status == "pending"
+		}
+		if !pending {
+			_ = m.RefreshMCP(ctx)
+			return
+		}
+	}
 }
 
 // discover ждёт, пока серверы перестанут подключаться, и спрашивает у

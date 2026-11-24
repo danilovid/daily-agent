@@ -67,7 +67,7 @@ func run() error {
 		return err
 	}
 	defer os.RemoveAll(root)
-	profile := agent.Profile{Root: root}
+	profile := agent.Profile{Root: root, Path: agent.LoginPath(), Inherit: agent.ShellEnv()}
 
 	began := time.Now()
 	sup := agent.NewManager(agent.Config{Profile: profile}, setup)

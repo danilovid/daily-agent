@@ -150,6 +150,9 @@ function ServerRow({ server: s, busy, onToggle, onLogin, onRefresh, onRemove, on
         {s.status === 'connected' && (
           <span className="mcp-row__hint">Разрешено инструментов: {allowed} из {tools.length}</span>
         )}
+        {s.status === 'failed' && s.error && (
+          <span className="mcp-row__hint mcp-row__hint--error" title={s.error}>{s.error}</span>
+        )}
       </div>
       <span className="mcp-row__pill">Только чтение</span>
       <span className={`mcp-row__status mcp-row__status--${status.tone}`} title={s.error || undefined}>{status.text}</span>
@@ -390,6 +393,17 @@ function TokenDialog({ server: s, onClose, onSaved }: DialogProps & { server: MC
   const [error, setError] = useState<string | null>(null);
   const id = (t: MCPTokenView) => `${t.kind}:${t.key}`;
 
+  const importFromConfig = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      onSaved(await MCPService.ImportTokens(s.name));
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(false);
+    }
+  };
+
   const save = async () => {
     setBusy(true);
     setError(null);
@@ -426,10 +440,17 @@ function TokenDialog({ server: s, onClose, onSaved }: DialogProps & { server: MC
             />
           </Field>
         ))}
-        <p className="field__hint">Токены хранятся в Связке ключей macOS. В настройках OpenCode на их месте только ссылка на переменную окружения.</p>
+        <p className="field__hint">Токены хранятся в Связке ключей macOS. В настройках OpenCode агента на их месте только ссылка на переменную окружения.</p>
+        {s.tokensInConfig && (
+          <p className="field__hint">Токен записан в ваших настройках OpenCode. Его можно перенести в Связку ключей одной кнопкой.</p>
+        )}
         {error && <p className="field__error" role="alert">{error}</p>}
         <div className="card__footer">
-          <span />
+          {s.tokensInConfig ? (
+            <button type="button" className="text-button text-button--accent" onClick={importFromConfig} disabled={busy}>
+              Взять из настроек OpenCode
+            </button>
+          ) : <span />}
           <div className="model-form__actions">
             <button type="button" className="secondary-button" onClick={onClose} disabled={busy}>Отмена</button>
             <button type="submit" className="primary-button" disabled={busy || Object.values(values).every((v) => !v.trim())}>

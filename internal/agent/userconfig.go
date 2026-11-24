@@ -52,6 +52,9 @@ type UserConfig struct {
 	MCP []UserMCPServer
 	// MCPSkipped — MCP-серверы, которые не удалось перенести.
 	MCPSkipped int
+	// RefEnv — значения переменных, на которые ссылаются описания ({env:ИМЯ}),
+	// из оболочки входа пользователя: ИМЯ=значение для процесса OpenCode.
+	RefEnv []string
 }
 
 // MCPServer находит MCP-сервер по имени для агента.
@@ -100,8 +103,71 @@ func UserConfigFiles() []string {
 
 // LoadUserConfig читает провайдеров из настроек OpenCode пользователя.
 // Берутся только провайдеры моделей и MCP-серверы, без секретов. Плагины,
-// агенты и права пользователя в профиль приложения не попадают.
-func LoadUserConfig() (UserConfig, error) { return ReadUserConfig(UserConfigFiles()...) }
+// агенты и права пользователя в профиль приложения не попадают. Переменные,
+// на которые ссылаются описания, берутся из оболочки входа: так их видит и
+// OpenCode пользователя, запущенный из терминала.
+func LoadUserConfig() (UserConfig, error) {
+	cfg, err := ReadUserConfig(UserConfigFiles()...)
+	if err != nil {
+		return cfg, err
+	}
+	cfg.RefEnv = refEnv(cfg.EnvRefs(), ShellEnv())
+	return cfg, nil
+}
+
+// EnvRefs — имена переменных из ссылок {env:ИМЯ} в описаниях провайдеров и
+// MCP-серверов. Свои переменные приложения не в счёт.
+func (c UserConfig) EnvRefs() []string {
+	seen := map[string]bool{}
+	var walk func(v any)
+	walk = func(v any) {
+		switch x := v.(type) {
+		case string:
+			for _, m := range envRef.FindAllStringSubmatch(x, -1) {
+				if !strings.HasPrefix(m[1], "DAILY_AGENT_") {
+					seen[m[1]] = true
+				}
+			}
+		case map[string]any:
+			for _, y := range x {
+				walk(y)
+			}
+		case []any:
+			for _, y := range x {
+				walk(y)
+			}
+		case []string:
+			for _, y := range x {
+				walk(y)
+			}
+		}
+	}
+	for _, p := range c.Providers {
+		walk(p.Definition)
+	}
+	for _, s := range c.MCP {
+		walk(s.Definition)
+	}
+	out := make([]string, 0, len(seen))
+	for name := range seen {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
+var envRef = regexp.MustCompile(`\{env:([A-Za-z_][A-Za-z0-9_]*)\}`)
+
+// refEnv берёт из окружения оболочки значения только нужных переменных.
+func refEnv(names []string, shell map[string]string) []string {
+	var out []string
+	for _, name := range names {
+		if v, ok := shell[name]; ok && v != "" {
+			out = append(out, name+"="+v)
+		}
+	}
+	return out
+}
 
 // ReadUserConfig читает провайдеров из файлов. Нет файла — не ошибка.
 // Провайдер из более позднего файла заменяет одноимённого из раннего.

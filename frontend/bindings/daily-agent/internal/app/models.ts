@@ -250,6 +250,12 @@ export interface MCPServerView {
     "status": string;
     "error": string;
     "tokens": MCPTokenView[] | null;
+
+    /**
+     * TokensInConfig — недостающие токены есть в настройках OpenCode
+     * пользователя: их можно перенести в Связку ключей одной кнопкой.
+     */
+    "tokensInConfig": boolean;
     "tools": MCPToolView[] | null;
 
     /**

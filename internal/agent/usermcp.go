@@ -43,6 +43,21 @@ type UserMCPServer struct {
 	// Definition — описание для mcp.servers профиля, со ссылками {env:…}
 	// на месте секретов.
 	Definition map[string]any
+	// secrets — значения секретов из настроек пользователя, по Kind:Key.
+	// Только в памяти: переносятся в Связку ключей по просьбе пользователя.
+	secrets map[string]string
+}
+
+// HasSecret — в настройках пользователя есть значение этого секрета.
+func (s UserMCPServer) HasSecret(t MCPToken) bool {
+	_, ok := s.secrets[t.Kind+":"+t.Key]
+	return ok
+}
+
+// Secret — значение секрета из настроек пользователя, без начала вроде «Bearer ».
+func (s UserMCPServer) Secret(t MCPToken) (string, bool) {
+	v, ok := s.secrets[t.Kind+":"+t.Key]
+	return v, ok
 }
 
 // MCPName приводит имя сервера к виду для агента. Пусто — не получилось.
@@ -125,7 +140,7 @@ func readMCP(section map[string]any) (servers []UserMCPServer, skipped int) {
 }
 
 func mcpFrom(name, title string, src map[string]any, v2 bool) (UserMCPServer, bool) {
-	s := UserMCPServer{Name: name, Title: title}
+	s := UserMCPServer{Name: name, Title: title, secrets: map[string]string{}}
 	s.Type, _ = src["type"].(string)
 	def := map[string]any{"type": s.Type}
 	if v2 {
@@ -151,6 +166,7 @@ func mcpFrom(name, title string, src map[string]any, v2 bool) (UserMCPServer, bo
 			if secretName.MatchString(k) && !isReference(str) && str != "" {
 				t := MCPToken{Kind: "env", Key: k, Env: MCPTokenEnv(name, "env", k)}
 				s.Tokens = append(s.Tokens, t)
+				s.secrets[t.Kind+":"+t.Key] = str
 				env[k] = "{env:" + t.Env + "}"
 				continue
 			}
@@ -175,6 +191,7 @@ func mcpFrom(name, title string, src map[string]any, v2 bool) (UserMCPServer, bo
 			// Значение заголовка может быть секретом: переносится только ссылкой.
 			t := MCPToken{Kind: "header", Key: k, Env: MCPTokenEnv(name, "header", k), Prefix: splitSecret(str)}
 			s.Tokens = append(s.Tokens, t)
+			s.secrets[t.Kind+":"+t.Key] = strings.TrimPrefix(str, t.Prefix)
 			headers[k] = t.Prefix + "{env:" + t.Env + "}"
 		}
 		if len(headers) > 0 {
