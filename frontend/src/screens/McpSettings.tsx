@@ -156,8 +156,13 @@ function ServerRow({ server: s, busy, onToggle, onLogin, onRefresh, onRemove, on
       <div className="mcp-row__label">
         <span className="mcp-row__title">{s.title}</span>
         <span className="mcp-row__hint" title={s.address}>{kind} · {s.address}{source}</span>
-        {s.status === 'connected' && (
+        {s.status === 'connected' && (allowed > 0 || tools.length === 0) && (
           <span className="mcp-row__hint">Разрешено инструментов: {allowed} из {tools.length}</span>
+        )}
+        {s.status === 'connected' && allowed === 0 && tools.length > 0 && (
+          <span className="mcp-row__hint mcp-row__hint--warning">
+            Разрешено 0 из {tools.length}: имена не похожи на чтение. Выберите инструменты в «Инструментах…»
+          </span>
         )}
         {s.status === 'failed' && s.error && (
           <span className="mcp-row__hint mcp-row__hint--error" title={s.error}>{s.error}</span>

@@ -6,18 +6,37 @@ import (
 )
 
 // В версии 0.1 агент только читает рабочие системы. Инструмент считается
-// инструментом чтения, если его имя начинается со слова чтения и в нём нет
-// слов записи. Это защита по имени: аннотации MCP OpenCode агенту не передаёт.
+// инструментом чтения по имени: аннотации MCP OpenCode агенту не передаёт.
+// Имена бывают «сначала глагол» (get_issue, create_issue) и «сначала
+// существительное» (issue_details, issue_create), правило понимает оба.
 var (
-	readWords  = []string{"get", "list", "search", "read", "find", "query", "fetch", "view", "show", "describe", "count", "lookup", "browse", "retrieve"}
+	readWords = []string{"get", "list", "search", "read", "find", "query", "fetch", "view", "show", "describe",
+		"count", "lookup", "browse", "retrieve"}
+	// readNouns — имена инструментов чтения вида issue_details, issue_comments.
+	readNouns = []string{"details", "detail", "info", "status", "current", "recent", "summary", "activities",
+		"activity", "comments", "links", "types", "history"}
 	writeWords = []string{
 		"create", "update", "delete", "remove", "add", "set", "post", "send", "write", "edit", "merge", "close",
-		"assign", "comment", "approve", "move", "archive", "publish", "upload", "put", "patch", "insert", "modify",
-		"change", "rename", "reply", "react", "invite", "cancel", "reopen", "transition", "label", "star", "fork",
+		"assign", "comment", "approve", "move", "archive", "unarchive", "publish", "upload", "put", "patch", "insert", "modify",
+		"change", "rename", "reply", "react", "invite", "cancel", "reopen", "transition", "label", "star", "unstar", "fork",
 		"push", "commit", "run", "execute", "trigger", "deploy", "start", "stop", "restart", "mark", "submit", "save",
 		"import", "export", "sync", "share", "pin", "unpin", "lock", "unlock", "resolve", "dismiss", "accept", "reject",
 	}
+	// ambiguousWrite — глаголы записи, которые бывают и существительными:
+	// merge request, comment, commit, pipeline run. В середине имени и после
+	// глагола чтения они запись не означают: get_merge_request — чтение.
+	ambiguousWrite = []string{"merge", "comment", "commit", "push", "run", "label", "share", "import", "export",
+		"mark", "save", "close", "sync", "start", "stop", "move", "post"}
 )
+
+func inList(list []string, w string) bool {
+	for _, x := range list {
+		if x == w {
+			return true
+		}
+	}
+	return false
+}
 
 // toolWords делит имя инструмента на слова: по «_», «-», «.» и заглавным буквам.
 func toolWords(name string) []string {
@@ -46,37 +65,44 @@ func toolWords(name string) []string {
 	return words
 }
 
-// ToolIsWrite — инструмент похож на запись: имя начинается с глагола записи
-// (create_issue, merge_request_merge) или глагол записи стоит после «and»
-// (get_and_delete). Существительные вроде merge в get_merge_request не в счёт.
+// ToolIsWrite — инструмент похож на запись. Глагол записи стоит первым
+// (create_issue), последним (issue_create, issue_link_add) или после «and»
+// (get_and_delete); однозначный глагол записи — в любом месте
+// (issue_change_state). Слово, которое бывает существительным, в середине
+// имени и после глагола чтения не в счёт: get_merge_request — чтение.
 // tool — имя без сервера.
 func ToolIsWrite(tool string) bool {
 	words := toolWords(tool)
-	for i, w := range words {
-		if (i == 0 || words[i-1] == "and") && isWriteWord(w) {
-			return true
-		}
-	}
-	return false
-}
-
-func isWriteWord(w string) bool {
-	for _, bad := range writeWords {
-		if w == bad {
-			return true
-		}
-	}
-	return false
-}
-
-// ToolIsRead — инструмент чтения: первое слово — чтение, слов записи нет.
-func ToolIsRead(tool string) bool {
-	words := toolWords(tool)
-	if len(words) == 0 || ToolIsWrite(tool) {
+	if len(words) == 0 {
 		return false
 	}
-	for _, r := range readWords {
-		if words[0] == r {
+	readFirst := inList(readWords, words[0])
+	for i, w := range words {
+		if !inList(writeWords, w) {
+			continue
+		}
+		if i > 0 && words[i-1] == "and" {
+			return true
+		}
+		ambiguous := inList(ambiguousWrite, w)
+		if !ambiguous {
+			return true
+		}
+		if !readFirst && (i == 0 || i == len(words)-1) {
+			return true
+		}
+	}
+	return false
+}
+
+// ToolIsRead — инструмент чтения: не запись, и в имени есть слово чтения
+// (get, list, search…) или существительное чтения (details, comments…).
+func ToolIsRead(tool string) bool {
+	if ToolIsWrite(tool) {
+		return false
+	}
+	for _, w := range toolWords(tool) {
+		if inList(readWords, w) || inList(readNouns, w) {
 			return true
 		}
 	}

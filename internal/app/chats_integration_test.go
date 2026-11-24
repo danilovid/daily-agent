@@ -490,7 +490,7 @@ func TestLiveMCPInChats(t *testing.T) {
 			allowed = append(allowed, tool.Short)
 		}
 	}
-	if list[0].Status != "connected" || strings.Join(allowed, ",") != "get_issue,list_issues" {
+	if list[0].Status != "connected" || strings.Join(allowed, ",") != "get_issue,issue_details,list_issues" {
 		t.Fatalf("сервер с токеном: %+v", list[0])
 	}
 	time.Sleep(1500 * time.Millisecond) // подписка на события открывается заново после перезапуска

@@ -82,10 +82,10 @@ func TestLiveMCPTools(t *testing.T) {
 	waitAgent(t, m)
 
 	local, rem, sec := mcpState(m, "local"), mcpState(m, "remote"), mcpState(m, "secured")
-	if local.Status != "connected" || toolNames(local.Tools) != "local_create_issue,local_get_issue,local_list_issues" || local.Tools[1].Description == "" {
+	if local.Status != "connected" || toolNames(local.Tools) != "local_create_issue,local_get_issue,local_issue_details,local_list_issues" || local.Tools[1].Description == "" {
 		t.Fatalf("локальный сервер: %+v", local)
 	}
-	if rem.Status != "connected" || len(rem.Tools) != 3 {
+	if rem.Status != "connected" || len(rem.Tools) != 4 {
 		t.Fatalf("удалённый сервер: %+v", rem)
 	}
 	if sec.Status != "needs_auth" || sec.IntegrationID == "" || len(sec.Tools) != 0 {
@@ -119,8 +119,14 @@ func TestLiveMCPTools(t *testing.T) {
 		return reply, offered
 	}
 	reply, offered := ask(`[stub:call name=local_get_issue args={"id":"TEST-1"}]`)
-	if strings.Join(offered, ",") != "local_get_issue,local_list_issues,remote_get_issue" {
+	if strings.Join(offered, ",") != "local_get_issue,local_issue_details,local_list_issues,remote_get_issue" {
 		t.Fatalf("предложены инструменты: %v", offered)
+	}
+	// Инструмент с именем «сначала существительное» не подходит под шаблоны
+	// профиля (local_get* и подобные): его открывают права сессии.
+	reply, _ = ask(`[stub:call name=local_issue_details args={"id":"TEST-1"}]`)
+	if len(reply.Tools) != 1 || reply.Tools[0].Status != "completed" {
+		t.Fatalf("issue_details: %+v", reply.Tools)
 	}
 	if len(reply.Tools) != 1 || reply.Tools[0].Status != "completed" {
 		t.Fatalf("разрешённый вызов: %+v", reply.Tools)
@@ -134,7 +140,7 @@ func TestLiveMCPTools(t *testing.T) {
 		t.Fatalf("выполнение кода: %+v", reply.Tools)
 	}
 	raw, _ := os.ReadFile(logPath)
-	if !strings.Contains(string(raw), "call get_issue") || strings.Contains(string(raw), "call create_issue") {
+	if !strings.Contains(string(raw), "call get_issue") || !strings.Contains(string(raw), "call issue_details") || strings.Contains(string(raw), "call create_issue") {
 		t.Fatalf("вызовы локального сервера: %s", raw)
 	}
 
@@ -211,7 +217,7 @@ func TestLiveMCPLocalCommandFromPath(t *testing.T) {
 	if st := run(""); st.Status == "connected" {
 		t.Fatalf("без папки в PATH сервер не должен находиться: %+v", st)
 	}
-	if st := run(tools + ":/usr/bin:/bin"); st.Status != "connected" || len(st.Tools) != 3 {
+	if st := run(tools + ":/usr/bin:/bin"); st.Status != "connected" || len(st.Tools) != 4 {
 		t.Fatalf("с папкой в PATH: %+v", st)
 	}
 }

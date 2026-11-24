@@ -197,6 +197,7 @@
   text-overflow: ellipsis;
 }
 .mcp-row__hint--error { color: var(--color-danger); }
+.mcp-row__hint--warning { color: var(--color-warning-text); }
 .mcp-row__pill {
   display: flex;
   align-items: center;

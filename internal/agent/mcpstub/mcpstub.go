@@ -30,6 +30,8 @@ var Tools = []Tool{
 	{Name: "get_issue", Description: "Прочитать задачу трекера по номеру", ReadOnly: true},
 	{Name: "list_issues", Description: "Список задач трекера", ReadOnly: true},
 	{Name: "create_issue", Description: "Создать задачу в трекере", ReadOnly: false},
+	// Имя «сначала существительное», как у некоторых серверов, например YouTrack.
+	{Name: "issue_details", Description: "Подробности задачи трекера", ReadOnly: true},
 }
 
 // Reply — ответ инструмента.
